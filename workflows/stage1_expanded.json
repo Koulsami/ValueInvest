@@ -1,0 +1,94 @@
+{
+  "name": "Stage 1 - Expanded (S&P 500 + Europe)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// S&P 500 Companies (Top ~200 by market cap)\nconst sp500 = [\n  // Technology\n  'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'META', 'NVDA', 'AVGO', 'ORCL', 'CRM', 'ADBE',\n  'AMD', 'CSCO', 'ACN', 'IBM', 'INTC', 'QCOM', 'TXN', 'NOW', 'INTU', 'AMAT',\n  'ADI', 'LRCX', 'MU', 'KLAC', 'SNPS', 'CDNS', 'MCHP', 'APH', 'MSI', 'FTNT',\n  'HPQ', 'HPE', 'KEYS', 'NTAP', 'WDC', 'STX', 'JNPR', 'FFIV', 'AKAM',\n  \n  // Healthcare\n  'UNH', 'JNJ', 'LLY', 'PFE', 'ABBV', 'MRK', 'TMO', 'ABT', 'DHR', 'BMY',\n  'AMGN', 'GILD', 'CVS', 'ELV', 'CI', 'SYK', 'MDT', 'ISRG', 'VRTX', 'REGN',\n  'BSX', 'ZTS', 'BDX', 'HUM', 'MCK', 'CAH', 'DXCM', 'IDXX', 'IQV', 'EW',\n  'A', 'BIIB', 'MTD', 'WAT', 'HOLX', 'ALGN', 'TECH', 'CRL',\n  \n  // Financials\n  'JPM', 'V', 'MA', 'BAC', 'WFC', 'GS', 'MS', 'BLK', 'SPGI', 'AXP',\n  'C', 'SCHW', 'CB', 'MMC', 'PGR', 'AON', 'ICE', 'CME', 'USB', 'PNC',\n  'TFC', 'AIG', 'MET', 'PRU', 'AFL', 'ALL', 'TRV', 'AMP', 'MSCI', 'MCO',\n  'FIS', 'COF', 'BK', 'STT', 'FITB', 'MTB', 'HBAN', 'CFG', 'RF', 'KEY',\n  \n  // Consumer Discretionary\n  'AMZN', 'TSLA', 'HD', 'MCD', 'NKE', 'LOW', 'SBUX', 'TJX', 'BKNG', 'CMG',\n  'ORLY', 'AZO', 'MAR', 'HLT', 'ROST', 'YUM', 'DHI', 'LEN', 'GM', 'F',\n  'EBAY', 'APTV', 'GPC', 'BBY', 'PHM', 'NVR', 'POOL', 'DRI', 'ULTA', 'WYNN',\n  'LVS', 'MGM', 'CCL', 'RCL', 'NCLH', 'HAS', 'DPZ',\n  \n  // Consumer Staples\n  'PG', 'KO', 'PEP', 'COST', 'WMT', 'PM', 'MO', 'MDLZ', 'CL', 'KMB',\n  'GIS', 'K', 'HSY', 'KHC', 'STZ', 'SYY', 'KR', 'WBA', 'EL', 'CHD',\n  'MKC', 'CLX', 'HRL', 'SJM', 'CPB', 'CAG', 'TSN', 'TAP', 'BG', 'ADM',\n  \n  // Energy\n  'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'MPC', 'PSX', 'VLO', 'PXD', 'OXY',\n  'WMB', 'KMI', 'HAL', 'DVN', 'HES', 'FANG', 'BKR', 'TRGP', 'OKE', 'CTRA',\n  \n  // Industrials\n  'CAT', 'GE', 'HON', 'UNP', 'UPS', 'RTX', 'BA', 'DE', 'LMT', 'MMM',\n  'ETN', 'ITW', 'EMR', 'PH', 'GD', 'NOC', 'WM', 'RSG', 'CSX', 'NSC',\n  'JCI', 'PCAR', 'CMI', 'CARR', 'OTIS', 'AME', 'ROK', 'FAST', 'PWR', 'VRSK',\n  'IR', 'XYL', 'DOV', 'FTV', 'GWW', 'SWK', 'WAB', 'TT', 'LHX', 'TDG',\n  \n  // Utilities\n  'NEE', 'DUK', 'SO', 'D', 'AEP', 'SRE', 'EXC', 'XEL', 'PEG', 'ED',\n  'WEC', 'ES', 'AWK', 'DTE', 'EIX', 'FE', 'PPL', 'AEE', 'CMS', 'CNP',\n  \n  // Real Estate\n  'PLD', 'AMT', 'EQIX', 'CCI', 'PSA', 'O', 'WELL', 'SPG', 'DLR', 'AVB',\n  'EQR', 'VICI', 'VTR', 'SBAC', 'ARE', 'MAA', 'UDR', 'ESS', 'HST', 'KIM',\n  \n  // Materials\n  'LIN', 'APD', 'SHW', 'ECL', 'FCX', 'NEM', 'NUE', 'VMC', 'MLM', 'DOW',\n  'DD', 'PPG', 'CTVA', 'ALB', 'IFF', 'CE', 'EMN', 'FMC', 'CF', 'MOS',\n  \n  // Communication Services\n  'GOOG', 'META', 'NFLX', 'DIS', 'CMCSA', 'VZ', 'T', 'TMUS', 'CHTR', 'EA',\n  'TTWO', 'WBD', 'OMC', 'IPG', 'PARA', 'FOX', 'FOXA', 'LYV', 'MTCH', 'NWSA'\n];\n\n// European Stocks - Major indices (using their US ADR tickers where available)\n// FTSE 100 (UK), DAX (Germany), CAC 40 (France), Euro Stoxx 50\nconst europe = [\n  // UK - FTSE 100 (ADRs and London listings)\n  'BP', 'SHEL', 'HSBC', 'AZN', 'GSK', 'RIO', 'BHP', 'UL', 'BTI', 'NGG',\n  'VOD', 'DEO', 'LYG', 'BCS', 'NWG', 'RELX', 'JRI', 'LSEG.L', 'AAL.L', 'BARC.L',\n  'GLEN.L', 'LLOY.L', 'BA.L', 'DGE.L', 'PRU.L', 'STAN.L', 'RKT.L', 'IMB.L', 'BATS.L', 'ABF.L',\n  'WPP.L', 'IHG.L', 'EXPN.L', 'SGE.L', 'III.L', 'ANTO.L', 'FRES.L', 'PSON.L', 'INF.L', 'TSCO.L',\n  \n  // Germany - DAX 40 (ADRs and Frankfurt listings)\n  'SAP', 'SIEGY', 'DTEGY', 'BASFY', 'BAYRY', 'VWAGY', 'MBGYY', 'BMWYY', 'ADDYY', 'DBOEY',\n  'ALV.DE', 'MUV2.DE', 'DTE.DE', 'SIE.DE', 'BAS.DE', 'BAYN.DE', 'VOW3.DE', 'MBG.DE', 'BMW.DE', 'ADS.DE',\n  'DB1.DE', 'HEN3.DE', 'RWE.DE', 'EON.DE', 'FRE.DE', 'IFX.DE', 'MTX.DE', 'SHL.DE', 'HEI.DE', 'CON.DE',\n  \n  // France - CAC 40 (ADRs and Paris listings)\n  'TTE', 'SNY', 'LVMUY', 'OR.PA', 'MC.PA', 'SAN.PA', 'AIR.PA', 'SU.PA', 'BNP.PA', 'ACA.PA',\n  'AI.PA', 'KER.PA', 'RI.PA', 'HO.PA', 'SGO.PA', 'CS.PA', 'VIV.PA', 'ORA.PA', 'EN.PA', 'BN.PA',\n  'CAP.PA', 'DSY.PA', 'STLA', 'STLAM.MI', 'ENGI.PA', 'EL.PA', 'VIE.PA', 'PUB.PA', 'LR.PA', 'ML.PA',\n  \n  // Netherlands, Switzerland, Spain, Italy\n  'ASML', 'NVO', 'NXPI', 'ING', 'UBS', 'NESN.SW', 'NOVN.SW', 'ROG.SW', 'ZURN.SW', 'ABBN.SW',\n  'LONN.SW', 'GIVN.SW', 'SREN.SW', 'CSGN.SW', 'BAER.SW', 'TEF', 'BBVA', 'SAN', 'IBE.MC', 'ITX.MC',\n  'REP.MC', 'ENEL.MI', 'ISP.MI', 'UCG.MI', 'ENI.MI', 'G.MI', 'RACE', 'POAHY', 'INGA.AS', 'AD.AS'\n];\n\n// Combine and deduplicate\nconst allStocks = [...new Set([...sp500, ...europe])];\n\nconsole.log(`Total stocks: ${allStocks.length}`);\n\nreturn allStocks.map(s => ({ json: { symbol: s } }));"
+      },
+      "id": "code-list",
+      "name": "Stock List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/stable/profile?symbol={{ $json.symbol }}&apikey=4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 10,
+              "batchInterval": 1000
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "http-1",
+      "name": "Get Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const data = item.json;\n  const p = Array.isArray(data) ? data[0] : data;\n  \n  // Skip empty responses or errors\n  if (!p || !p.symbol || p.error) continue;\n  \n  const marketCap = p.marketCap || 0;\n  const price = p.price || 0;\n  const pe = p.pe || 0;\n  const lastDiv = p.lastDividend || 0;\n  const divYield = price > 0 ? lastDiv / price : 0;\n  \n  // === VALUE SCREENING FILTERS ===\n  // Skip if market cap < $1B (too small)\n  if (marketCap < 1e9) continue;\n  \n  // Skip if P/E is negative or > 50 (not value)\n  if (pe <= 0 || pe > 50) continue;\n  \n  // Skip penny stocks\n  if (price < 5) continue;\n  \n  // Format market cap display\n  let mcDisplay = '$0';\n  if (marketCap >= 1e12) mcDisplay = '$' + (marketCap/1e12).toFixed(1) + 'T';\n  else if (marketCap >= 1e9) mcDisplay = '$' + (marketCap/1e9).toFixed(0) + 'B';\n  else if (marketCap >= 1e6) mcDisplay = '$' + (marketCap/1e6).toFixed(0) + 'M';\n  \n  results.push({\n    json: {\n      symbol: p.symbol,\n      company_name: p.companyName || '',\n      sector: p.sector || '',\n      industry: p.industry || '',\n      exchange: p.exchange || '',\n      country: p.country || '',\n      price: Math.round(price * 100) / 100,\n      market_cap: marketCap,\n      market_cap_display: mcDisplay,\n      pe_ratio: Math.round(pe * 100) / 100,\n      beta: Math.round((p.beta || 1) * 100) / 100,\n      dividend_yield: Math.round(divYield * 10000) / 10000,\n      dividend_yield_pct: (divYield * 100).toFixed(2) + '%',\n      volume: p.volume || 0,\n      avg_volume: p.averageVolume || 0,\n      year_high: p.range ? parseFloat(p.range.split('-')[1]) : 0,\n      year_low: p.range ? parseFloat(p.range.split('-')[0]) : 0,\n      change_pct: Math.round((p.changePercentage || 0) * 100) / 100,\n      is_profitable: pe > 0,\n      is_dividend_paying: lastDiv > 0,\n      is_penny_stock: price < 5,\n      last_updated: new Date().toISOString().split('T')[0]\n    }\n  });\n}\n\nconsole.log(`Filtered to ${results.length} value stocks`);\nreturn results;"
+      },
+      "id": "code-format",
+      "name": "Format & Filter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-1",
+      "name": "Write to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [880, 0]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Stock List", "type": "main", "index": 0 }]]
+    },
+    "Stock List": {
+      "main": [[{ "node": "Get Profile", "type": "main", "index": 0 }]]
+    },
+    "Get Profile": {
+      "main": [[{ "node": "Format & Filter", "type": "main", "index": 0 }]]
+    },
+    "Format & Filter": {
+      "main": [[{ "node": "Write to Sheets", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
