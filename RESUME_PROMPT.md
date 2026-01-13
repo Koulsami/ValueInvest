@@ -25,6 +25,7 @@ Copy everything below this line and paste it to continue:
 | Google Sheets | ✅ Connected | OAuth configured |
 | Stage 1 Workflow | ✅ Working | `stage1_complete.json` - 50 stocks |
 | Stage 2 Workflow | ✅ Working | `stage2_full_fields.json` - 34 fields |
+| Stage 2 + AI | ✅ Working | `stage2_with_ai.json` - AI moat analysis |
 | Looker Studio | ⚠️ Needs Update | Field names need to match new data |
 
 ### API Keys Configured
@@ -46,13 +47,23 @@ https://raw.githubusercontent.com/Koulsami/ValueInvest/main/workflows/stage1_com
 - Fetches 50 stocks from FMP `/stable/profile` endpoint
 - Outputs 20 fields to `Stage1_Screened` tab
 
-### Stage 2 - Full Fields
+### Stage 2 - Full Fields (No AI)
 ```
 https://raw.githubusercontent.com/Koulsami/ValueInvest/main/workflows/stage2_full_fields.json
 ```
 - Reads from `Stage1_Screened`
 - Calculates scores + adds simulated data for missing fields
 - Outputs 34 fields to `Stage2_Scored` tab
+
+### Stage 2 - With AI Analysis
+```
+https://raw.githubusercontent.com/Koulsami/ValueInvest/main/workflows/stage2_with_ai.json
+```
+- Reads from `Stage1_Screened` (limited to 5 stocks)
+- Sends each stock to OpenAI GPT-4o-mini for moat analysis
+- AI returns: moatScore (0-10), strengths, concerns, thesis
+- Outputs 37 fields to `Stage2_Scored` tab (includes ai_strengths, ai_concerns, ai_thesis)
+- **Setup:** After importing, edit "AI Analysis" node and replace `YOUR_OPENAI_API_KEY_HERE` with your key (keep `Bearer ` prefix)
 
 ---
 
@@ -212,8 +223,9 @@ railway up --detach
    - Add more symbols to the array
 
 4. **If you want AI moat analysis:**
-   - OpenAI key is configured in Railway
-   - Would need to add AI node back to Stage 2 workflow
+   - Use `stage2_with_ai.json` workflow
+   - After importing, add your OpenAI key to the "AI Analysis" node (keep `Bearer ` prefix)
+   - Currently processes 5 stocks per run (edit "Limit to 5" node to change)
 
 ---
 
