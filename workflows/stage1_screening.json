@@ -1,5 +1,5 @@
 {
-  "name": "Stage 1 - Screen 250 to 50",
+  "name": "Stage 1 - Screen 100 to 50",
   "nodes": [
     {
       "parameters": {},
@@ -11,10 +11,10 @@
     },
     {
       "parameters": {
-        "jsCode": "// 250 Value Stock Candidates - Mix of US large/mid caps\nconst stocks = [\n  // Technology (40)\n  'AAPL', 'MSFT', 'GOOGL', 'META', 'NVDA', 'AVGO', 'ORCL', 'CRM', 'ADBE', 'AMD',\n  'CSCO', 'ACN', 'IBM', 'INTC', 'QCOM', 'TXN', 'NOW', 'INTU', 'AMAT', 'ADI',\n  'LRCX', 'MU', 'KLAC', 'SNPS', 'CDNS', 'MCHP', 'APH', 'MSI', 'FTNT', 'HPQ',\n  'HPE', 'KEYS', 'NTAP', 'WDC', 'STX', 'JNPR', 'FFIV', 'AKAM', 'CTSH', 'EPAM',\n  \n  // Healthcare (35)\n  'UNH', 'JNJ', 'LLY', 'PFE', 'ABBV', 'MRK', 'TMO', 'ABT', 'DHR', 'BMY',\n  'AMGN', 'GILD', 'CVS', 'ELV', 'CI', 'SYK', 'MDT', 'ISRG', 'VRTX', 'REGN',\n  'BSX', 'ZTS', 'BDX', 'HUM', 'MCK', 'CAH', 'DXCM', 'IDXX', 'IQV', 'EW',\n  'BIIB', 'MTD', 'WAT', 'HOLX', 'ALGN',\n  \n  // Financials (40)\n  'JPM', 'V', 'MA', 'BAC', 'WFC', 'GS', 'MS', 'BLK', 'SPGI', 'AXP',\n  'C', 'SCHW', 'CB', 'MMC', 'PGR', 'AON', 'ICE', 'CME', 'USB', 'PNC',\n  'TFC', 'AIG', 'MET', 'PRU', 'AFL', 'ALL', 'TRV', 'AMP', 'MSCI', 'MCO',\n  'FIS', 'COF', 'BK', 'STT', 'FITB', 'MTB', 'HBAN', 'CFG', 'RF', 'KEY',\n  \n  // Consumer Discretionary (30)\n  'AMZN', 'TSLA', 'HD', 'MCD', 'NKE', 'LOW', 'SBUX', 'TJX', 'BKNG', 'CMG',\n  'ORLY', 'AZO', 'MAR', 'HLT', 'ROST', 'YUM', 'DHI', 'LEN', 'GM', 'F',\n  'EBAY', 'APTV', 'GPC', 'BBY', 'PHM', 'NVR', 'POOL', 'DRI', 'ULTA', 'DPZ',\n  \n  // Consumer Staples (25)\n  'PG', 'KO', 'PEP', 'COST', 'WMT', 'PM', 'MO', 'MDLZ', 'CL', 'KMB',\n  'GIS', 'K', 'HSY', 'KHC', 'STZ', 'SYY', 'KR', 'WBA', 'EL', 'CHD',\n  'MKC', 'CLX', 'HRL', 'SJM', 'CPB',\n  \n  // Energy (20)\n  'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'MPC', 'PSX', 'VLO', 'PXD', 'OXY',\n  'WMB', 'KMI', 'HAL', 'DVN', 'HES', 'FANG', 'BKR', 'TRGP', 'OKE', 'CTRA',\n  \n  // Industrials (35)\n  'CAT', 'GE', 'HON', 'UNP', 'UPS', 'RTX', 'BA', 'DE', 'LMT', 'MMM',\n  'ETN', 'ITW', 'EMR', 'PH', 'GD', 'NOC', 'WM', 'RSG', 'CSX', 'NSC',\n  'JCI', 'PCAR', 'CMI', 'CARR', 'OTIS', 'AME', 'ROK', 'FAST', 'PWR', 'VRSK',\n  'IR', 'XYL', 'DOV', 'FTV', 'GWW',\n  \n  // Utilities (15)\n  'NEE', 'DUK', 'SO', 'D', 'AEP', 'SRE', 'EXC', 'XEL', 'PEG', 'ED',\n  'WEC', 'ES', 'AWK', 'DTE', 'EIX',\n  \n  // Materials (10)\n  'LIN', 'APD', 'SHW', 'ECL', 'FCX', 'NEM', 'NUE', 'VMC', 'MLM', 'DOW'\n];\n\nconsole.log(`Total input stocks: ${stocks.length}`);\nreturn stocks.map(s => ({ json: { symbol: s } }));"
+        "jsCode": "// 100 Value Stock Candidates - Top US large caps (reduced for API rate limits)\nconst stocks = [\n  // Technology (15)\n  'AAPL', 'MSFT', 'GOOGL', 'META', 'AVGO', 'ORCL', 'CRM', 'CSCO', 'ACN', 'IBM',\n  'INTC', 'QCOM', 'TXN', 'INTU', 'AMAT',\n  \n  // Healthcare (15)\n  'UNH', 'JNJ', 'LLY', 'PFE', 'ABBV', 'MRK', 'TMO', 'ABT', 'DHR', 'BMY',\n  'AMGN', 'GILD', 'CVS', 'ELV', 'CI',\n  \n  // Financials (15)\n  'JPM', 'V', 'MA', 'BAC', 'WFC', 'GS', 'MS', 'BLK', 'SPGI', 'AXP',\n  'C', 'SCHW', 'CB', 'MMC', 'PGR',\n  \n  // Consumer Discretionary (12)\n  'AMZN', 'HD', 'MCD', 'NKE', 'LOW', 'SBUX', 'TJX', 'BKNG',\n  'ORLY', 'MAR', 'YUM', 'GM',\n  \n  // Consumer Staples (12)\n  'PG', 'KO', 'PEP', 'COST', 'WMT', 'PM', 'MO', 'MDLZ', 'CL', 'KMB',\n  'GIS', 'HSY',\n  \n  // Energy (10)\n  'XOM', 'CVX', 'COP', 'EOG', 'SLB', 'MPC', 'PSX', 'VLO', 'OXY', 'WMB',\n  \n  // Industrials (12)\n  'CAT', 'GE', 'HON', 'UNP', 'UPS', 'RTX', 'DE', 'LMT', 'MMM', 'ETN',\n  'ITW', 'EMR',\n  \n  // Utilities (5)\n  'NEE', 'DUK', 'SO', 'D', 'AEP',\n  \n  // Materials (4)\n  'LIN', 'APD', 'SHW', 'ECL'\n];\n\nconsole.log(`Total input stocks: ${stocks.length}`);\nreturn stocks.map(s => ({ json: { symbol: s } }));"
       },
       "id": "code-list",
-      "name": "250 Stocks",
+      "name": "100 Stocks",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [220, 0]
@@ -25,11 +25,11 @@
         "options": {
           "batching": {
             "batch": {
-              "batchSize": 10,
-              "batchInterval": 1000
+              "batchSize": 5,
+              "batchInterval": 3000
             }
           },
-          "timeout": 10000
+          "timeout": 15000
         }
       },
       "id": "http-1",
