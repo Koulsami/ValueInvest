@@ -1,0 +1,86 @@
+{
+  "name": "Stage 1 - Complete",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 50 Value Stocks\nconst stocks = [\n  'AAPL', 'MSFT', 'GOOGL', 'META', 'ORCL', 'IBM', 'CSCO', 'INTC',\n  'JNJ', 'PFE', 'MRK', 'ABBV', 'BMY', 'AMGN', 'GILD', 'UNH',\n  'PG', 'KO', 'PEP', 'WMT', 'COST', 'CL', 'KHC', 'GIS',\n  'JPM', 'BAC', 'WFC', 'GS', 'MS', 'BLK', 'V', 'MA',\n  'XOM', 'CVX', 'COP', 'VLO', 'MPC', 'PSX',\n  'CAT', 'DE', 'HON', 'UNP', 'UPS', 'MMM', 'GE', 'RTX',\n  'VZ', 'T', 'HD', 'LOW'\n];\n\nreturn stocks.map(s => ({ json: { symbol: s } }));"
+      },
+      "id": "code-list",
+      "name": "Stock List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/stable/profile?symbol={{ $json.symbol }}&apikey=4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt",
+        "options": {}
+      },
+      "id": "http-1",
+      "name": "Get Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const data = item.json;\n  const p = Array.isArray(data) ? data[0] : data;\n  \n  if (!p || !p.symbol) continue;\n  \n  const marketCap = p.marketCap || 0;\n  const price = p.price || 0;\n  const lastDiv = p.lastDividend || 0;\n  const divYield = price > 0 ? lastDiv / price : 0;\n  \n  // Format market cap display\n  let mcDisplay = '$0';\n  if (marketCap >= 1e12) mcDisplay = '$' + (marketCap/1e12).toFixed(1) + 'T';\n  else if (marketCap >= 1e9) mcDisplay = '$' + (marketCap/1e9).toFixed(0) + 'B';\n  else if (marketCap >= 1e6) mcDisplay = '$' + (marketCap/1e6).toFixed(0) + 'M';\n  \n  results.push({\n    json: {\n      symbol: p.symbol,\n      company_name: p.companyName || '',\n      sector: p.sector || '',\n      industry: p.industry || '',\n      exchange: p.exchange || '',\n      price: Math.round(price * 100) / 100,\n      market_cap: marketCap,\n      market_cap_display: mcDisplay,\n      pe_ratio: Math.round((p.pe || 0) * 100) / 100,\n      beta: Math.round((p.beta || 1) * 100) / 100,\n      dividend_yield: Math.round(divYield * 10000) / 10000,\n      dividend_yield_pct: (divYield * 100).toFixed(2) + '%',\n      volume: p.volume || 0,\n      avg_volume: p.averageVolume || 0,\n      year_high: p.range ? parseFloat(p.range.split('-')[1]) : 0,\n      year_low: p.range ? parseFloat(p.range.split('-')[0]) : 0,\n      change_pct: Math.round((p.changePercentage || 0) * 100) / 100,\n      is_profitable: (p.pe || 0) > 0,\n      is_dividend_paying: lastDiv > 0,\n      is_penny_stock: price < 5,\n      last_updated: new Date().toISOString().split('T')[0]\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "code-format",
+      "name": "Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-1",
+      "name": "Write to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [880, 0]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Stock List", "type": "main", "index": 0 }]]
+    },
+    "Stock List": {
+      "main": [[{ "node": "Get Profile", "type": "main", "index": 0 }]]
+    },
+    "Get Profile": {
+      "main": [[{ "node": "Format", "type": "main", "index": 0 }]]
+    },
+    "Format": {
+      "main": [[{ "node": "Write to Sheets", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
