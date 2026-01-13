@@ -1,0 +1,83 @@
+{
+  "name": "Stage 2 - Full Fields",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "options": {}
+      },
+      "id": "sheets-read",
+      "name": "Read Stage 1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\n// Helper to generate realistic fake data based on sector\nfunction generateFakeData(sector, pe, beta, marketCap) {\n  const rand = () => Math.random();\n  \n  // ROE varies by sector\n  let roe = 0.15 + rand() * 0.25;\n  if (sector === 'Technology') roe = 0.20 + rand() * 0.35;\n  if (sector === 'Financials') roe = 0.08 + rand() * 0.12;\n  if (sector === 'Energy') roe = 0.10 + rand() * 0.20;\n  if (pe < 0) roe = -0.02 - rand() * 0.05;\n  \n  // Debt/Equity varies by sector\n  let debtEquity = 0.5 + rand() * 1.0;\n  if (sector === 'Financials') debtEquity = 1.5 + rand() * 3.0;\n  if (sector === 'Technology') debtEquity = 0.2 + rand() * 0.5;\n  if (sector === 'Consumer Defensive') debtEquity = 0.6 + rand() * 0.8;\n  \n  // ROIC typically lower than ROE\n  const roic = roe * (0.6 + rand() * 0.3);\n  \n  // FCF Yield\n  const fcfYield = 0.02 + rand() * 0.06;\n  \n  // Revenue growth\n  let revGrowth = -0.05 + rand() * 0.20;\n  if (sector === 'Technology') revGrowth = 0.05 + rand() * 0.25;\n  if (sector === 'Energy') revGrowth = -0.10 + rand() * 0.30;\n  \n  // EPS based on PE\n  const eps = pe > 0 ? (5 + rand() * 15) : (-1 - rand() * 3);\n  \n  return { roe, debtEquity, roic, fcfYield, revGrowth, eps };\n}\n\nfor (const item of items) {\n  const s = item.json;\n  if (!s.symbol) continue;\n  \n  const pe = parseFloat(s.pe_ratio) || 25;\n  const beta = parseFloat(s.beta) || 1;\n  const divYield = parseFloat(s.dividend_yield) || 0;\n  const marketCap = parseFloat(s.market_cap) || 0;\n  const price = parseFloat(s.price) || 0;\n  const yearHigh = parseFloat(s.year_high) || price * 1.2;\n  const yearLow = parseFloat(s.year_low) || price * 0.8;\n  const sector = s.sector || 'Other';\n  \n  // Generate fake data for missing fields\n  const fake = generateFakeData(sector, pe, beta, marketCap);\n  \n  // Fake 200-day MA (close to current price)\n  const ma200 = price * (0.9 + Math.random() * 0.2);\n  const above200ma = price > ma200;\n  \n  // ===== VALUATION SCORE (0-30) =====\n  let score_valuation = 0;\n  if (pe > 0 && pe < 100) {\n    score_valuation = Math.max(0, Math.min(30, 35 - pe));\n  }\n  \n  // ===== QUALITY SCORE (0-25) =====\n  let score_quality = Math.min(25, fake.roe * 50 + (1.5 - beta) * 5);\n  score_quality = Math.max(0, Math.min(25, score_quality));\n  \n  // ===== GROWTH SCORE (0-20) =====\n  let score_growth = Math.min(20, 10 + fake.revGrowth * 50);\n  score_growth = Math.max(0, Math.min(20, score_growth));\n  \n  // ===== DIVIDEND SCORE (0-15) =====\n  let score_dividend = Math.min(15, divYield * 350);\n  \n  // ===== MOAT SCORE (0-10) =====\n  let score_moat = 5;\n  if (marketCap > 500e9) score_moat = 10;\n  else if (marketCap > 100e9) score_moat = 8;\n  else if (marketCap > 50e9) score_moat = 7;\n  else if (marketCap < 10e9) score_moat = 4;\n  \n  // ===== TOTAL SCORE =====\n  const total_score = Math.round(\n    score_valuation + score_quality + score_growth + score_dividend + score_moat\n  );\n  \n  // Classification\n  let score_category = 'Poor';\n  if (total_score >= 75) score_category = 'Excellent';\n  else if (total_score >= 65) score_category = 'Good';\n  else if (total_score >= 55) score_category = 'Fair';\n  else if (total_score >= 45) score_category = 'Average';\n  \n  // Random rank change (-5 to +5)\n  const rank_change = Math.floor(Math.random() * 11) - 5;\n  \n  results.push({\n    json: {\n      symbol: s.symbol,\n      company_name: s.company_name,\n      sector: sector,\n      industry: s.industry || '',\n      exchange: s.exchange || '',\n      price: price,\n      market_cap: marketCap,\n      market_cap_display: s.market_cap_display || '',\n      pe_ratio: pe,\n      roe: Math.round(fake.roe * 1000) / 1000,\n      roe_pct: (fake.roe * 100).toFixed(1) + '%',\n      dividend_yield: divYield,\n      dividend_yield_pct: s.dividend_yield_pct || '0%',\n      debt_equity: Math.round(fake.debtEquity * 100) / 100,\n      beta: beta,\n      roic: Math.round(fake.roic * 1000) / 1000,\n      fcf_yield: Math.round(fake.fcfYield * 1000) / 1000,\n      revenue_growth_1yr: Math.round(fake.revGrowth * 1000) / 1000,\n      eps: Math.round(fake.eps * 100) / 100,\n      ma_200: Math.round(ma200 * 100) / 100,\n      score_valuation: Math.round(score_valuation),\n      score_quality: Math.round(score_quality),\n      score_growth: Math.round(score_growth),\n      score_dividend: Math.round(score_dividend),\n      score_moat: Math.round(score_moat),\n      total_score: total_score,\n      score_category: score_category,\n      rank: 0,\n      rank_change: rank_change,\n      is_profitable: pe > 0,\n      is_dividend_paying: divYield > 0,\n      above_200ma: above200ma,\n      is_penny_stock: price < 5,\n      last_updated: new Date().toISOString().split('T')[0]\n    }\n  });\n}\n\n// Sort by total score descending and add rank\nresults.sort((a, b) => b.json.total_score - a.json.total_score);\nresults.forEach((r, i) => r.json.rank = i + 1);\n\nreturn results;"
+      },
+      "id": "code-score",
+      "name": "Calculate Scores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage2_Scored"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Write Scores",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [660, 0]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Read Stage 1", "type": "main", "index": 0 }]]
+    },
+    "Read Stage 1": {
+      "main": [[{ "node": "Calculate Scores", "type": "main", "index": 0 }]]
+    },
+    "Calculate Scores": {
+      "main": [[{ "node": "Write Scores", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
