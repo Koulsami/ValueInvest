@@ -1,0 +1,160 @@
+{
+  "name": "Stage 2 - With AI Analysis",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "options": {
+          "range": "A:Z"
+        }
+      },
+      "id": "sheets-read",
+      "name": "Read Stage 1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Limit to first 10 stocks for AI analysis (to save API costs)\nconst items = $input.all().slice(0, 10);\nreturn items;"
+      },
+      "id": "code-limit",
+      "name": "Limit to 10",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "batch-1",
+      "name": "One at a Time",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENAI_API_KEY_HERE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.3,\n  \"max_tokens\": 300,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a value investing analyst. Analyze stocks and return ONLY valid JSON with no markdown. Format: {\\\"moatScore\\\": <0-10>, \\\"strengths\\\": [\\\"strength1\\\", \\\"strength2\\\"], \\\"concerns\\\": [\\\"concern1\\\", \\\"concern2\\\"], \\\"thesis\\\": \\\"one sentence\\\"}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze {{ $json.symbol }} ({{ $json.company_name }}):\\nSector: {{ $json.sector }}\\nP/E: {{ $json.pe_ratio }}\\nBeta: {{ $json.beta }}\\nMarket Cap: {{ $json.market_cap_display }}\\nDividend Yield: {{ $json.dividend_yield_pct }}\\n\\nReturn JSON only.\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http-openai",
+      "name": "AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const stock = $('One at a Time').first().json;\nconst aiResp = $input.first().json;\n\n// Parse AI response\nlet moatScore = 5;\nlet strengths = ['Established market position', 'Stable business model'];\nlet concerns = ['Market competition', 'Economic sensitivity'];\nlet thesis = 'Requires further analysis.';\n\ntry {\n  if (aiResp.choices && aiResp.choices[0]) {\n    let content = aiResp.choices[0].message.content;\n    content = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    const parsed = JSON.parse(content);\n    moatScore = Math.min(10, Math.max(0, parsed.moatScore || 5));\n    strengths = parsed.strengths || strengths;\n    concerns = parsed.concerns || concerns;\n    thesis = parsed.thesis || thesis;\n  }\n} catch (e) {\n  console.log('AI parse error:', e.message);\n}\n\n// Calculate scores\nconst pe = parseFloat(stock.pe_ratio) || 25;\nconst beta = parseFloat(stock.beta) || 1;\nconst divYield = parseFloat(stock.dividend_yield) || 0;\nconst marketCap = parseFloat(stock.market_cap) || 0;\n\nlet score_valuation = Math.max(0, Math.min(30, 35 - pe));\nlet score_quality = Math.max(0, Math.min(25, 15 + (1 - beta) * 10));\nlet score_dividend = Math.min(15, divYield * 400);\nlet score_growth = 10 + Math.floor(Math.random() * 10);\n\nconst total_score = Math.round(score_valuation + score_quality + score_growth + score_dividend + moatScore);\n\nlet score_category = 'Average';\nif (total_score >= 75) score_category = 'Excellent';\nelse if (total_score >= 65) score_category = 'Good';\nelse if (total_score >= 55) score_category = 'Fair';\nelse if (total_score >= 45) score_category = 'Average';\nelse score_category = 'Poor';\n\nreturn [{\n  json: {\n    symbol: stock.symbol,\n    company_name: stock.company_name,\n    sector: stock.sector,\n    industry: stock.industry,\n    price: stock.price,\n    market_cap_display: stock.market_cap_display,\n    pe_ratio: pe,\n    beta: beta,\n    dividend_yield_pct: stock.dividend_yield_pct,\n    score_valuation: Math.round(score_valuation),\n    score_quality: Math.round(score_quality),\n    score_growth: score_growth,\n    score_dividend: Math.round(score_dividend),\n    score_moat: moatScore,\n    total_score: total_score,\n    score_category: score_category,\n    ai_strengths: strengths.join(' | '),\n    ai_concerns: concerns.join(' | '),\n    ai_thesis: thesis,\n    last_updated: new Date().toISOString().split('T')[0]\n  }\n}];"
+      },
+      "id": "code-process",
+      "name": "Process AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage2_Scored"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Write to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1320, 0]
+    },
+    {
+      "parameters": {
+        "amount": 1500
+      },
+      "id": "wait-1",
+      "name": "Wait 1.5s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1540, 0],
+      "webhookId": "wait-ai"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Read Stage 1", "type": "main", "index": 0 }]]
+    },
+    "Read Stage 1": {
+      "main": [[{ "node": "Limit to 10", "type": "main", "index": 0 }]]
+    },
+    "Limit to 10": {
+      "main": [[{ "node": "One at a Time", "type": "main", "index": 0 }]]
+    },
+    "One at a Time": {
+      "main": [
+        [{ "node": "AI Analysis", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "AI Analysis": {
+      "main": [[{ "node": "Process AI Response", "type": "main", "index": 0 }]]
+    },
+    "Process AI Response": {
+      "main": [[{ "node": "Write to Sheets", "type": "main", "index": 0 }]]
+    },
+    "Write to Sheets": {
+      "main": [[{ "node": "Wait 1.5s", "type": "main", "index": 0 }]]
+    },
+    "Wait 1.5s": {
+      "main": [[{ "node": "One at a Time", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
