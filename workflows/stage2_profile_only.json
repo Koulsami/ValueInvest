@@ -33,7 +33,15 @@
     {
       "parameters": {
         "url": "=https://financialmodelingprep.com/stable/profile?symbol={{ $json.symbol }}&apikey=4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt",
-        "options": {}
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 5,
+              "batchInterval": 3000
+            }
+          },
+          "timeout": 15000
+        }
       },
       "id": "http-profile",
       "name": "Get Profile",

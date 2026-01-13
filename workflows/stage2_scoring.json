@@ -36,7 +36,7 @@
     },
     {
       "parameters": {
-        "batchSize": 10,
+        "batchSize": 3,
         "options": {}
       },
       "id": "batch-1",
@@ -191,7 +191,7 @@
     },
     {
       "parameters": {
-        "amount": 250
+        "amount": 3000
       },
       "id": "wait-1",
       "name": "Rate Limit",
