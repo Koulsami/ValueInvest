@@ -46,7 +46,7 @@
     {
       "parameters": {
         "mode": "combine",
-        "combinationMode": "mergeByPosition",
+        "combinationMode": "multiplex",
         "options": {}
       },
       "id": "merge-1",

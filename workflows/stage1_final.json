@@ -1,0 +1,59 @@
+{
+  "name": "Stage 1 - Final",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============ CONFIGURATION ============\nconst API_KEY = '4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt';\n\n// 20 stocks for testing\nconst STOCKS = [\n  'AAPL', 'MSFT', 'JNJ', 'PG', 'KO',\n  'XOM', 'CVX', 'JPM', 'BAC', 'HD',\n  'CAT', 'HON', 'VZ', 'PFE', 'IBM',\n  'MMM', 'GE', 'T', 'MRK', 'CSCO'\n];\n\n// ============ FETCH DATA ============\nconst results = [];\n\nfor (const symbol of STOCKS) {\n  try {\n    // Get profile\n    const profileResp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: `https://financialmodelingprep.com/stable/profile`,\n      qs: { symbol: symbol, apikey: API_KEY }\n    });\n    const profile = Array.isArray(profileResp) ? profileResp[0] : profileResp;\n    \n    if (!profile || !profile.symbol) {\n      console.log(`No profile for ${symbol}`);\n      continue;\n    }\n    \n    // Get ratios\n    const ratiosResp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: `https://financialmodelingprep.com/stable/ratios-ttm`,\n      qs: { symbol: symbol, apikey: API_KEY }\n    });\n    const ratios = Array.isArray(ratiosResp) ? ratiosResp[0] : ratiosResp;\n    \n    // Extract metrics\n    const pe = ratios?.peRatioTTM || 0;\n    const roe = ratios?.returnOnEquityTTM || 0;\n    const debtEquity = ratios?.debtEquityRatioTTM || 0;\n    const divYield = ratios?.dividendYieldTTM || 0;\n    \n    // Only include if valid\n    if (pe > 0 && pe < 50) {\n      results.push({\n        symbol: profile.symbol,\n        companyName: profile.companyName,\n        sector: profile.sector,\n        industry: profile.industry,\n        exchange: profile.exchange,\n        marketCap: profile.marketCap,\n        price: profile.price,\n        peRatio: Math.round(pe * 100) / 100,\n        roe: Math.round(roe * 10000) / 100,\n        debtEquity: Math.round(debtEquity * 100) / 100,\n        dividendYield: Math.round(divYield * 10000) / 100,\n        screeningDate: new Date().toISOString().split('T')[0]\n      });\n      console.log(`Added ${symbol}: PE=${pe.toFixed(1)}`);\n    }\n    \n  } catch (e) {\n    console.log(`Error ${symbol}: ${e.message}`);\n  }\n}\n\n// Sort by PE and add rank\nresults.sort((a, b) => a.peRatio - b.peRatio);\n\nconst output = results.map((stock, i) => ({\n  json: { rank: i + 1, ...stock }\n}));\n\nconsole.log(`Total: ${output.length} stocks`);\nreturn output;"
+      },
+      "id": "code-fetch",
+      "name": "Fetch & Process",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-1",
+      "name": "Write to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [440, 0]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Fetch & Process", "type": "main", "index": 0 }]]
+    },
+    "Fetch & Process": {
+      "main": [[{ "node": "Write to Sheets", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
