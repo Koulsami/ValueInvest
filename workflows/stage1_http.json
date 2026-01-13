@@ -1,0 +1,122 @@
+{
+  "name": "Stage 1 - HTTP Version",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 20 stocks for quick test\nconst stocks = [\n  'AAPL', 'MSFT', 'JNJ', 'PG', 'KO',\n  'XOM', 'CVX', 'JPM', 'BAC', 'HD',\n  'CAT', 'HON', 'VZ', 'PFE', 'IBM',\n  'MMM', 'GE', 'T', 'MRK', 'CSCO'\n];\n\nreturn stocks.map(s => ({ json: { symbol: s } }));"
+      },
+      "id": "code-stocks",
+      "name": "Stock List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/stable/profile?symbol={{ $json.symbol }}&apikey=4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt",
+        "options": { "timeout": 30000 }
+      },
+      "id": "http-profile",
+      "name": "Get Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, -100],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/stable/ratios-ttm?symbol={{ $json.symbol }}&apikey=4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt",
+        "options": { "timeout": 30000 }
+      },
+      "id": "http-ratios",
+      "name": "Get Ratios",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 100],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "merge-1",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  try {\n    const data = item.json;\n    \n    // Find profile and ratios in merged data\n    let profile = null;\n    let ratios = null;\n    \n    // Data might be array or direct object\n    if (Array.isArray(data)) {\n      profile = data.find(d => d.companyName);\n      ratios = data.find(d => d.peRatioTTM || d.returnOnEquityTTM);\n    } else if (data[0]) {\n      // Nested arrays\n      profile = Array.isArray(data[0]) ? data[0][0] : data[0];\n      ratios = data[1] ? (Array.isArray(data[1]) ? data[1][0] : data[1]) : null;\n    } else {\n      profile = data;\n    }\n    \n    if (!profile || !profile.symbol) continue;\n    \n    const pe = ratios?.peRatioTTM || ratios?.priceEarningsRatioTTM || 0;\n    const roe = ratios?.returnOnEquityTTM || 0;\n    \n    // Only include if has valid data\n    if (pe > 0 && pe < 50 && roe > 0) {\n      results.push({\n        json: {\n          symbol: profile.symbol,\n          companyName: profile.companyName || 'N/A',\n          sector: profile.sector || 'N/A',\n          industry: profile.industry || 'N/A',\n          exchange: profile.exchange || 'N/A',\n          marketCap: profile.marketCap || 0,\n          price: profile.price || 0,\n          peRatio: Math.round(pe * 100) / 100,\n          roe: Math.round(roe * 10000) / 100,\n          debtEquity: Math.round((ratios?.debtEquityRatioTTM || 0) * 100) / 100,\n          dividendYield: Math.round((ratios?.dividendYieldTTM || 0) * 10000) / 100,\n          screeningDate: new Date().toISOString().split('T')[0]\n        }\n      });\n    }\n  } catch (e) {\n    console.log('Error:', e.message);\n  }\n}\n\n// Sort by PE and add rank\nresults.sort((a, b) => a.json.peRatio - b.json.peRatio);\nresults.forEach((r, i) => r.json.rank = i + 1);\n\nconsole.log(`Processed ${results.length} stocks`);\nreturn results.length > 0 ? results : [{ json: { error: 'No data processed' } }];"
+      },
+      "id": "code-process",
+      "name": "Process & Filter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-1",
+      "name": "Write to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1100, 0]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Stock List", "type": "main", "index": 0 }]]
+    },
+    "Stock List": {
+      "main": [
+        [
+          { "node": "Get Profile", "type": "main", "index": 0 },
+          { "node": "Get Ratios", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Get Profile": {
+      "main": [[{ "node": "Merge", "type": "main", "index": 0 }]]
+    },
+    "Get Ratios": {
+      "main": [[{ "node": "Merge", "type": "main", "index": 1 }]]
+    },
+    "Merge": {
+      "main": [[{ "node": "Process & Filter", "type": "main", "index": 0 }]]
+    },
+    "Process & Filter": {
+      "main": [[{ "node": "Write to Sheets", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
