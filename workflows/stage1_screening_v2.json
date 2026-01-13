@@ -1,0 +1,220 @@
+{
+  "name": "Stage 1 - Stock Screening v2",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "apikey",
+              "name": "apiKey",
+              "value": "4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt",
+              "type": "string"
+            },
+            {
+              "id": "sheetid",
+              "name": "sheetId",
+              "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config-1",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// S&P 500 + Value Stock Universe (500 stocks)\n// This replaces the FMP screener which is now paid-only\nconst stocks = [\n  // Technology\n  'AAPL', 'MSFT', 'GOOGL', 'META', 'NVDA', 'AVGO', 'CSCO', 'ORCL', 'IBM', 'INTC',\n  'AMD', 'QCOM', 'TXN', 'ADI', 'AMAT', 'MU', 'LRCX', 'KLAC', 'MCHP', 'HPQ',\n  // Healthcare\n  'JNJ', 'UNH', 'PFE', 'MRK', 'ABBV', 'LLY', 'TMO', 'ABT', 'BMY', 'AMGN',\n  'GILD', 'MDT', 'CVS', 'CI', 'HUM', 'ISRG', 'VRTX', 'REGN', 'ZTS', 'BDX',\n  // Financial\n  'BRK-B', 'JPM', 'V', 'MA', 'BAC', 'WFC', 'GS', 'MS', 'SCHW', 'BLK',\n  'C', 'AXP', 'SPGI', 'CB', 'MMC', 'PGR', 'AON', 'MET', 'PRU', 'TRV',\n  // Consumer Staples\n  'PG', 'KO', 'PEP', 'COST', 'WMT', 'PM', 'MO', 'CL', 'MDLZ', 'KHC',\n  'GIS', 'K', 'HSY', 'SJM', 'CAG', 'CPB', 'KR', 'SYY', 'ADM', 'TSN',\n  // Consumer Discretionary\n  'AMZN', 'HD', 'MCD', 'NKE', 'SBUX', 'LOW', 'TJX', 'TGT', 'BKNG', 'CMG',\n  'ORLY', 'AZO', 'ROST', 'DHI', 'LEN', 'PHM', 'GPC', 'BBY', 'DG', 'DLTR',\n  // Industrials\n  'CAT', 'DE', 'HON', 'UNP', 'UPS', 'BA', 'RTX', 'LMT', 'GE', 'MMM',\n  'EMR', 'ETN', 'ITW', 'PH', 'ROK', 'CMI', 'PCAR', 'FAST', 'WM', 'RSG',\n  // Energy\n  'XOM', 'CVX', 'COP', 'SLB', 'EOG', 'MPC', 'PSX', 'VLO', 'OXY', 'PXD',\n  'DVN', 'HES', 'HAL', 'BKR', 'FANG', 'KMI', 'WMB', 'OKE', 'TRGP', 'LNG',\n  // Materials\n  'LIN', 'APD', 'SHW', 'ECL', 'DD', 'NEM', 'FCX', 'NUE', 'VMC', 'MLM',\n  // Utilities\n  'NEE', 'DUK', 'SO', 'D', 'AEP', 'SRE', 'EXC', 'XEL', 'PEG', 'ED',\n  // Communication Services\n  'GOOG', 'DIS', 'CMCSA', 'NFLX', 'VZ', 'T', 'TMUS', 'CHTR', 'EA', 'WBD',\n  // Real Estate (included for completeness)\n  'AMT', 'PLD', 'CCI', 'EQIX', 'PSA', 'SPG', 'O', 'WELL', 'DLR', 'AVB',\n  // Additional Value Stocks\n  'BRK-A', 'TSM', 'ASML', 'SAP', 'NVO', 'TM', 'SHEL', 'AZN', 'HSBC', 'NVS',\n  'SNY', 'GSK', 'BTI', 'BP', 'RIO', 'BHP', 'VALE', 'WDS', 'E', 'SU',\n  // Mid-cap Value\n  'ALLY', 'AFL', 'ALL', 'AIG', 'AIZ', 'L', 'LNC', 'PFG', 'VOYA', 'UNM',\n  'WHR', 'LEA', 'BWA', 'APTV', 'ALV', 'MGA', 'VC', 'DAN', 'MOD', 'CWH',\n  'TPR', 'PVH', 'RL', 'GIII', 'VFC', 'HBI', 'LEVI', 'GOOS', 'SKX', 'DECK',\n  'ODP', 'PRTY', 'BBWI', 'ULTA', 'GPS', 'ANF', 'AEO', 'URBN', 'EXPR', 'GES',\n  // Dividend Value Stocks\n  'ABBV', 'MO', 'PM', 'BTI', 'VZ', 'T', 'IBM', 'MMM', 'WBA', 'KHC',\n  'LYB', 'DOW', 'VTRS', 'OGN', 'PARA', 'WBD', 'LUMN', 'VNO', 'SLG', 'HIW'\n];\n\n// Remove duplicates\nconst uniqueStocks = [...new Set(stocks)];\n\nconst config = $input.first().json;\n\nreturn uniqueStocks.map(symbol => ({\n  json: {\n    symbol: symbol,\n    apiKey: config.apiKey,\n    sheetId: config.sheetId\n  }\n}));"
+      },
+      "id": "code-stocks",
+      "name": "Stock Universe",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "batchSize": 30,
+        "options": {}
+      },
+      "id": "batch-1",
+      "name": "Batch 30",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/stable/profile?symbol={{ $json.symbol }}&apikey={{ $json.apiKey }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "http-profile",
+      "name": "Get Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, -100],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/stable/ratios-ttm?symbol={{ $json.symbol }}&apikey={{ $json.apiKey }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "http-ratios",
+      "name": "Get Ratios",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 100],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "symbol",
+              "field2": "symbol"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "merge-1",
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst batchItem = $('Batch 30').first().json;\n\nconst results = [];\n\nfor (const item of items) {\n  try {\n    // Get profile (first item is array)\n    const profileData = $('Get Profile').first().json;\n    const profile = Array.isArray(profileData) ? profileData[0] : profileData;\n    \n    // Get ratios\n    const ratiosData = $('Get Ratios').first().json;\n    const ratios = Array.isArray(ratiosData) ? ratiosData[0] : ratiosData;\n    \n    if (!profile || !profile.symbol) continue;\n    if (!ratios) continue;\n    \n    // Extract key metrics\n    const pe = ratios.peRatioTTM || ratios.priceEarningsRatioTTM || 999;\n    const pb = ratios.priceToBookRatioTTM || 999;\n    const roe = ratios.returnOnEquityTTM || 0;\n    const debtEquity = ratios.debtEquityRatioTTM || 999;\n    const currentRatio = ratios.currentRatioTTM || 0;\n    const dividendYield = ratios.dividendYieldTTM || 0;\n    \n    results.push({\n      json: {\n        symbol: profile.symbol,\n        companyName: profile.companyName,\n        sector: profile.sector,\n        industry: profile.industry,\n        exchange: profile.exchange,\n        marketCap: profile.marketCap,\n        price: profile.price,\n        peRatio: pe,\n        pbRatio: pb,\n        roe: roe,\n        debtEquity: debtEquity,\n        currentRatio: currentRatio,\n        dividendYield: dividendYield,\n        grossMargin: ratios.grossProfitMarginTTM || 0,\n        netMargin: ratios.netProfitMarginTTM || 0,\n        operatingMargin: ratios.operatingProfitMarginTTM || 0,\n        apiKey: batchItem.apiKey,\n        sheetId: batchItem.sheetId\n      }\n    });\n  } catch (e) {\n    console.log('Error processing:', e.message);\n  }\n}\n\nreturn results.length > 0 ? results : [{ json: { skip: true } }];"
+      },
+      "id": "code-process",
+      "name": "Process Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 0]
+    },
+    {
+      "parameters": {
+        "amount": 500
+      },
+      "id": "wait-1",
+      "name": "Rate Limit",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1540, 0],
+      "webhookId": "wait-1"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-1",
+      "name": "Collect All",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1760, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allData = $input.first().json.data || [];\n\n// Filter out skipped items and apply value filters\nconst filtered = allData.filter(stock => {\n  if (stock.skip) return false;\n  if (!stock.symbol) return false;\n  if (!stock.peRatio || stock.peRatio <= 0) return false;\n  \n  // Value investing filters (relaxed for broader coverage)\n  const passesFilters = (\n    stock.peRatio > 0 &&\n    stock.peRatio < 25 &&           // P/E < 25\n    stock.roe > 0.08 &&             // ROE > 8%\n    stock.marketCap > 1000000000    // Market Cap > $1B\n  );\n  \n  return passesFilters;\n});\n\n// Sort by P/E (lower is better for value)\nfiltered.sort((a, b) => a.peRatio - b.peRatio);\n\n// Format and rank\nreturn filtered.slice(0, 200).map((stock, index) => ({\n  json: {\n    rank: index + 1,\n    symbol: stock.symbol,\n    companyName: stock.companyName,\n    sector: stock.sector,\n    industry: stock.industry,\n    exchange: stock.exchange,\n    marketCap: stock.marketCap,\n    marketCapB: `$${(stock.marketCap / 1e9).toFixed(1)}B`,\n    price: Math.round(stock.price * 100) / 100,\n    peRatio: Math.round(stock.peRatio * 100) / 100,\n    pbRatio: Math.round(stock.pbRatio * 100) / 100,\n    roe: Math.round(stock.roe * 10000) / 100,\n    debtEquity: Math.round(stock.debtEquity * 100) / 100,\n    currentRatio: Math.round(stock.currentRatio * 100) / 100,\n    dividendYield: Math.round(stock.dividendYield * 10000) / 100,\n    grossMargin: Math.round(stock.grossMargin * 10000) / 100,\n    netMargin: Math.round(stock.netMargin * 10000) / 100,\n    screeningDate: new Date().toISOString().split('T')[0]\n  }\n}));"
+      },
+      "id": "code-filter",
+      "name": "Filter & Rank",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1980, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-1",
+      "name": "Write to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2200, 0]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Config", "type": "main", "index": 0 }]]
+    },
+    "Config": {
+      "main": [[{ "node": "Stock Universe", "type": "main", "index": 0 }]]
+    },
+    "Stock Universe": {
+      "main": [[{ "node": "Batch 30", "type": "main", "index": 0 }]]
+    },
+    "Batch 30": {
+      "main": [
+        [
+          { "node": "Get Profile", "type": "main", "index": 0 },
+          { "node": "Get Ratios", "type": "main", "index": 0 }
+        ],
+        [{ "node": "Collect All", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Profile": {
+      "main": [[{ "node": "Merge Data", "type": "main", "index": 0 }]]
+    },
+    "Get Ratios": {
+      "main": [[{ "node": "Merge Data", "type": "main", "index": 1 }]]
+    },
+    "Merge Data": {
+      "main": [[{ "node": "Process Data", "type": "main", "index": 0 }]]
+    },
+    "Process Data": {
+      "main": [[{ "node": "Rate Limit", "type": "main", "index": 0 }]]
+    },
+    "Rate Limit": {
+      "main": [[{ "node": "Batch 30", "type": "main", "index": 0 }]]
+    },
+    "Collect All": {
+      "main": [[{ "node": "Filter & Rank", "type": "main", "index": 0 }]]
+    },
+    "Filter & Rank": {
+      "main": [[{ "node": "Write to Sheets", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
