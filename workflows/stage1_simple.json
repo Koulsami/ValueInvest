@@ -1,0 +1,85 @@
+{
+  "name": "Stage 1 - Simple Screening",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Configuration - EDIT THESE VALUES\nconst API_KEY = '4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt';\nconst SHEET_ID = '1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0';\n\n// Stock universe - 50 stocks for testing\nconst stocks = [\n  'AAPL', 'MSFT', 'GOOGL', 'META', 'NVDA',\n  'JNJ', 'PG', 'KO', 'PEP', 'MRK',\n  'XOM', 'CVX', 'COP', 'VLO', 'MPC',\n  'JPM', 'BAC', 'WFC', 'GS', 'MS',\n  'HD', 'LOW', 'TGT', 'COST', 'WMT',\n  'CAT', 'DE', 'HON', 'UNP', 'UPS',\n  'DIS', 'CMCSA', 'VZ', 'T', 'TMUS',\n  'PFE', 'ABBV', 'BMY', 'LLY', 'AMGN',\n  'IBM', 'ORCL', 'CSCO', 'INTC', 'TXN',\n  'MMM', 'EMR', 'ITW', 'GE', 'RTX'\n];\n\nreturn [{\n  json: {\n    stocks: stocks,\n    apiKey: API_KEY,\n    sheetId: SHEET_ID\n  }\n}];"
+      },
+      "id": "code-config",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $input.first().json;\nconst stocks = config.stocks;\nconst apiKey = config.apiKey;\n\nconst results = [];\n\nfor (const symbol of stocks) {\n  try {\n    // Fetch profile\n    const profileUrl = `https://financialmodelingprep.com/stable/profile?symbol=${symbol}&apikey=${apiKey}`;\n    const profileRes = await fetch(profileUrl);\n    const profileData = await profileRes.json();\n    const profile = Array.isArray(profileData) ? profileData[0] : profileData;\n    \n    if (!profile || !profile.symbol) continue;\n    \n    // Fetch ratios\n    const ratiosUrl = `https://financialmodelingprep.com/stable/ratios-ttm?symbol=${symbol}&apikey=${apiKey}`;\n    const ratiosRes = await fetch(ratiosUrl);\n    const ratiosData = await ratiosRes.json();\n    const ratios = Array.isArray(ratiosData) ? ratiosData[0] : ratiosData;\n    \n    if (!ratios) continue;\n    \n    // Extract metrics\n    const pe = ratios.peRatioTTM || ratios.priceEarningsRatioTTM || 0;\n    const pb = ratios.priceToBookRatioTTM || 0;\n    const roe = ratios.returnOnEquityTTM || 0;\n    const debtEquity = ratios.debtEquityRatioTTM || 0;\n    const currentRatio = ratios.currentRatioTTM || 0;\n    const dividendYield = ratios.dividendYieldTTM || 0;\n    const grossMargin = ratios.grossProfitMarginTTM || 0;\n    const netMargin = ratios.netProfitMarginTTM || 0;\n    \n    results.push({\n      symbol: profile.symbol,\n      companyName: profile.companyName,\n      sector: profile.sector,\n      industry: profile.industry,\n      exchange: profile.exchange,\n      marketCap: profile.marketCap,\n      price: profile.price,\n      peRatio: pe,\n      pbRatio: pb,\n      roe: roe,\n      debtEquity: debtEquity,\n      currentRatio: currentRatio,\n      dividendYield: dividendYield,\n      grossMargin: grossMargin,\n      netMargin: netMargin\n    });\n    \n    // Small delay to avoid rate limiting\n    await new Promise(r => setTimeout(r, 200));\n    \n  } catch (e) {\n    console.log(`Error fetching ${symbol}:`, e.message);\n  }\n}\n\n// Store for next node\nreturn [{ json: { results: results, sheetId: config.sheetId } }];"
+      },
+      "id": "code-fetch",
+      "name": "Fetch All Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst results = input.results;\nconst sheetId = input.sheetId;\n\n// Apply value filters\nconst filtered = results.filter(stock => {\n  if (!stock.peRatio || stock.peRatio <= 0) return false;\n  \n  return (\n    stock.peRatio > 0 &&\n    stock.peRatio < 30 &&\n    stock.roe > 0.05 &&\n    stock.marketCap > 1000000000\n  );\n});\n\n// Sort by P/E (lower is better)\nfiltered.sort((a, b) => a.peRatio - b.peRatio);\n\n// Format output\nconst output = filtered.map((stock, index) => ({\n  json: {\n    rank: index + 1,\n    symbol: stock.symbol,\n    companyName: stock.companyName,\n    sector: stock.sector,\n    industry: stock.industry,\n    exchange: stock.exchange,\n    marketCap: stock.marketCap,\n    marketCapB: `$${(stock.marketCap / 1e9).toFixed(1)}B`,\n    price: Math.round(stock.price * 100) / 100,\n    peRatio: Math.round(stock.peRatio * 100) / 100,\n    pbRatio: Math.round(stock.pbRatio * 100) / 100,\n    roe: Math.round(stock.roe * 10000) / 100,\n    debtEquity: Math.round(stock.debtEquity * 100) / 100,\n    currentRatio: Math.round(stock.currentRatio * 100) / 100,\n    dividendYield: Math.round(stock.dividendYield * 10000) / 100,\n    grossMargin: Math.round(stock.grossMargin * 10000) / 100,\n    netMargin: Math.round(stock.netMargin * 10000) / 100,\n    screeningDate: new Date().toISOString().split('T')[0]\n  }\n}));\n\nconsole.log(`Filtered ${filtered.length} stocks from ${results.length}`);\n\nreturn output;"
+      },
+      "id": "code-filter",
+      "name": "Filter & Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-1",
+      "name": "Write to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [880, 0]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Config", "type": "main", "index": 0 }]]
+    },
+    "Config": {
+      "main": [[{ "node": "Fetch All Data", "type": "main", "index": 0 }]]
+    },
+    "Fetch All Data": {
+      "main": [[{ "node": "Filter & Format", "type": "main", "index": 0 }]]
+    },
+    "Filter & Format": {
+      "main": [[{ "node": "Write to Sheets", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
