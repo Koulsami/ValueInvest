@@ -1,0 +1,119 @@
+{
+  "name": "Stage 1 - Loop Version",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  { json: { symbol: 'AAPL' } },\n  { json: { symbol: 'MSFT' } },\n  { json: { symbol: 'JNJ' } },\n  { json: { symbol: 'PG' } },\n  { json: { symbol: 'KO' } },\n  { json: { symbol: 'XOM' } },\n  { json: { symbol: 'CVX' } },\n  { json: { symbol: 'JPM' } },\n  { json: { symbol: 'BAC' } },\n  { json: { symbol: 'HD' } }\n];"
+      },
+      "id": "code-list",
+      "name": "Stock List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "loop-1",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/stable/profile?symbol={{ $json.symbol }}&apikey=4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt",
+        "options": {}
+      },
+      "id": "http-1",
+      "name": "Get Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst profile = Array.isArray(data) ? data[0] : data;\n\nif (!profile || !profile.symbol) {\n  return [{ json: { skip: true } }];\n}\n\nreturn [{\n  json: {\n    symbol: profile.symbol,\n    companyName: profile.companyName,\n    sector: profile.sector,\n    industry: profile.industry,\n    marketCap: profile.marketCap,\n    price: profile.price,\n    pe: profile.pe || 0,\n    beta: profile.beta || 0,\n    screeningDate: new Date().toISOString().split('T')[0]\n  }\n}];"
+      },
+      "id": "code-format",
+      "name": "Format Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "amount": 500
+      },
+      "id": "wait-1",
+      "name": "Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1100, 0],
+      "webhookId": "wait-1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-1",
+      "name": "Write to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1320, 0]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Stock List", "type": "main", "index": 0 }]]
+    },
+    "Stock List": {
+      "main": [[{ "node": "Loop Over Items", "type": "main", "index": 0 }]]
+    },
+    "Loop Over Items": {
+      "main": [
+        [{ "node": "Get Profile", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Get Profile": {
+      "main": [[{ "node": "Format Data", "type": "main", "index": 0 }]]
+    },
+    "Format Data": {
+      "main": [[{ "node": "Write to Sheets", "type": "main", "index": 0 }]]
+    },
+    "Write to Sheets": {
+      "main": [[{ "node": "Wait", "type": "main", "index": 0 }]]
+    },
+    "Wait": {
+      "main": [[{ "node": "Loop Over Items", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
