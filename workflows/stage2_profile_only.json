@@ -1,0 +1,97 @@
+{
+  "name": "Stage 2 - Profile Scoring",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "options": {}
+      },
+      "id": "sheets-read",
+      "name": "Read Stage 1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/stable/profile?symbol={{ $json.symbol }}&apikey=4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt",
+        "options": {}
+      },
+      "id": "http-profile",
+      "name": "Get Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst stage1Items = $('Read Stage 1').all();\nconst results = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const profileData = items[i].json;\n  const stage1 = stage1Items[i]?.json || {};\n  const profile = Array.isArray(profileData) ? profileData[0] : profileData;\n  \n  if (!profile || !profile.symbol) continue;\n  \n  // Use profile data for scoring\n  const pe = profile.pe || 20;\n  const beta = profile.beta || 1;\n  const marketCap = profile.marketCap || 0;\n  const lastDiv = profile.lastDividend || 0;\n  const price = profile.price || 1;\n  const divYield = lastDiv / price;\n  \n  // Valuation Score (0-30) - lower PE is better\n  const valScore = Math.max(0, Math.min(30, 30 - (pe - 5) * 1.2));\n  \n  // Stability Score (0-25) - lower beta is better for value\n  const stabilityScore = Math.max(0, Math.min(25, 25 - (beta - 0.5) * 15));\n  \n  // Size Score (0-15) - larger cap = more stable\n  const sizeScore = Math.min(15, Math.log10(marketCap / 1e9) * 5);\n  \n  // Dividend Score (0-15)\n  const divScore = Math.min(15, divYield * 400);\n  \n  // Total Score\n  const totalScore = Math.round(valScore + stabilityScore + sizeScore + divScore);\n  \n  // Classification\n  let classification = 'Average';\n  if (totalScore >= 65) classification = 'Excellent';\n  else if (totalScore >= 55) classification = 'Good';\n  else if (totalScore >= 45) classification = 'Fair';\n  \n  results.push({\n    json: {\n      rank: 0,\n      symbol: profile.symbol,\n      companyName: profile.companyName,\n      sector: profile.sector,\n      industry: profile.industry,\n      totalScore: totalScore,\n      classification: classification,\n      valuationScore: Math.round(valScore),\n      stabilityScore: Math.round(stabilityScore),\n      sizeScore: Math.round(sizeScore),\n      dividendScore: Math.round(divScore),\n      pe: Math.round(pe * 100) / 100,\n      beta: Math.round(beta * 100) / 100,\n      marketCapB: '$' + (marketCap / 1e9).toFixed(1) + 'B',\n      price: Math.round(price * 100) / 100,\n      scoringDate: new Date().toISOString().split('T')[0]\n    }\n  });\n}\n\n// Sort by score descending\nresults.sort((a, b) => b.json.totalScore - a.json.totalScore);\nresults.forEach((r, i) => r.json.rank = i + 1);\n\nreturn results;"
+      },
+      "id": "code-score",
+      "name": "Calculate Scores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage2_Scored"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Write Scores",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [880, 0]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Read Stage 1", "type": "main", "index": 0 }]]
+    },
+    "Read Stage 1": {
+      "main": [[{ "node": "Get Profile", "type": "main", "index": 0 }]]
+    },
+    "Get Profile": {
+      "main": [[{ "node": "Calculate Scores", "type": "main", "index": 0 }]]
+    },
+    "Calculate Scores": {
+      "main": [[{ "node": "Write Scores", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
