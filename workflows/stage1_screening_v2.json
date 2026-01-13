@@ -16,7 +16,7 @@
             {
               "id": "apikey",
               "name": "apiKey",
-              "value": "4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt",
+              "value": "YOUR_FMP_API_KEY_HERE",
               "type": "string"
             },
             {

@@ -1,0 +1,252 @@
+{
+  "name": "Stage 2 - Value Scoring v2",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "apikey",
+              "name": "apiKey",
+              "value": "YOUR_FMP_API_KEY_HERE",
+              "type": "string"
+            },
+            {
+              "id": "openaikey",
+              "name": "openaiKey",
+              "value": "YOUR_OPENAI_API_KEY_HERE",
+              "type": "string"
+            },
+            {
+              "id": "sheetid",
+              "name": "sheetId",
+              "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config-1",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "options": {}
+      },
+      "id": "sheets-read",
+      "name": "Read Stage 1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst config = $('Config').first().json;\n\n// Take top 50 stocks for scoring (to stay within API limits)\nconst stocks = items.slice(0, 50).map(item => ({\n  json: {\n    ...item.json,\n    apiKey: config.apiKey,\n    openaiKey: config.openaiKey,\n    sheetId: config.sheetId\n  }\n}));\n\nreturn stocks;"
+      },
+      "id": "code-prep",
+      "name": "Prepare Stocks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      },
+      "id": "batch-1",
+      "name": "Batch 5",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/stable/key-metrics-ttm?symbol={{ $json.symbol }}&apikey={{ $json.apiKey }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "http-metrics",
+      "name": "Get Key Metrics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 0],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const stock = $('Batch 5').first().json;\nconst metricsData = $input.first().json;\nconst metrics = Array.isArray(metricsData) ? metricsData[0] : metricsData;\n\nif (!metrics || !stock.symbol) {\n  return [{ json: { skip: true } }];\n}\n\n// ===== VALUATION SCORE (30 points max) =====\nconst pe = parseFloat(stock.peRatio) || 20;\nconst pb = parseFloat(stock.pbRatio) || 3;\nconst evEbitda = metrics.evToEBITDATTM || 15;\n\nconst peScore = Math.max(0, Math.min(12, 12 - (pe - 5) * 0.6));\nconst pbScore = Math.max(0, Math.min(12, 12 - pb * 3));\nconst evScore = Math.max(0, Math.min(12, 12 - (evEbitda - 4) * 0.6));\nconst valuationScore = (peScore * 0.45 + pbScore * 0.30 + evScore * 0.25) * 2.5;\n\n// ===== QUALITY SCORE (25 points max) =====\nconst roe = parseFloat(stock.roe) / 100 || 0;\nconst roic = metrics.returnOnInvestedCapitalTTM || metrics.roicTTM || roe * 0.8;\nconst netMargin = parseFloat(stock.netMargin) / 100 || 0;\nconst debtEquity = parseFloat(stock.debtEquity) || 1;\n\nconst roeScore = Math.min(12, Math.abs(roe) * 40);\nconst roicScore = Math.min(12, Math.abs(roic) * 50);\nconst marginScore = Math.min(12, Math.abs(netMargin) * 50);\nconst debtScore = Math.max(0, 12 - Math.abs(debtEquity) * 3);\nconst qualityScore = (roeScore * 0.35 + roicScore * 0.30 + marginScore * 0.20 + debtScore * 0.15) * 2.08;\n\n// ===== GROWTH SCORE (20 points max) =====\nconst revenueGrowth = metrics.revenueGrowthTTM || 0.05;\nconst epsGrowth = metrics.netIncomeGrowthTTM || 0.05;\nconst revScore = Math.min(12, Math.max(0, revenueGrowth * 50));\nconst epsScore = Math.min(12, Math.max(0, epsGrowth * 40));\nconst growthScore = (revScore * 0.55 + epsScore * 0.45) * 1.67;\n\n// ===== DIVIDEND SCORE (15 points max) =====\nconst divYield = parseFloat(stock.dividendYield) / 100 || 0;\nlet dividendScore = 0;\nif (divYield > 0) {\n  const yieldScore = Math.min(12, divYield * 250);\n  dividendScore = yieldScore * 1.25;\n}\n\nconst baseTotal = valuationScore + qualityScore + growthScore + dividendScore;\n\nreturn [{\n  json: {\n    symbol: stock.symbol,\n    companyName: stock.companyName,\n    sector: stock.sector,\n    industry: stock.industry,\n    exchange: stock.exchange,\n    marketCap: stock.marketCap,\n    marketCapB: stock.marketCapB,\n    price: stock.price,\n    \n    // Raw metrics\n    peRatio: pe,\n    pbRatio: pb,\n    roe: roe,\n    roic: roic,\n    netMargin: netMargin,\n    debtEquity: debtEquity,\n    dividendYield: divYield,\n    evEbitda: evEbitda,\n    \n    // Scores\n    valuationScore: Math.round(valuationScore * 10) / 10,\n    qualityScore: Math.round(qualityScore * 10) / 10,\n    growthScore: Math.round(growthScore * 10) / 10,\n    dividendScore: Math.round(dividendScore * 10) / 10,\n    baseTotal: Math.round(baseTotal * 10) / 10,\n    \n    // Config\n    openaiKey: stock.openaiKey,\n    sheetId: stock.sheetId\n  }\n}];"
+      },
+      "id": "code-scores",
+      "name": "Calculate Scores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.openaiKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.3,\n  \"max_tokens\": 400,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a value investment analyst. Analyze company data and respond ONLY with valid JSON. No markdown.\\n\\nProvide:\\n1. moatScore (0-10): competitive advantages\\n2. strengths: array of 2 key strengths\\n3. concerns: array of 2 key concerns\\n4. thesis: 1-sentence investment thesis\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Analyze {{ $json.companyName }} ({{ $json.symbol }}):\\n\\nSector: {{ $json.sector }}\\nP/E: {{ $json.peRatio }}\\nROE: {{ ($json.roe * 100).toFixed(1) }}%\\nDebt/Equity: {{ $json.debtEquity }}\\nDividend Yield: {{ ($json.dividendYield * 100).toFixed(2) }}%\\nBase Score: {{ $json.baseTotal }}/90\\n\\nRespond JSON only: {\\\"moatScore\\\": <0-10>, \\\"strengths\\\": [\\\"...\\\"], \\\"concerns\\\": [\\\"...\\\"], \\\"thesis\\\": \\\"...\\\"}\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "http-openai",
+      "name": "AI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 0],
+      "onError": "continueRegularOutput",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const stock = $('Calculate Scores').first().json;\nconst aiResponse = $input.first().json;\n\nlet moatScore = 5;\nlet strengths = ['Established business', 'Market presence'];\nlet concerns = ['Market competition', 'Economic sensitivity'];\nlet thesis = 'Requires further analysis.';\n\ntry {\n  if (aiResponse.choices && aiResponse.choices[0]) {\n    let content = aiResponse.choices[0].message.content;\n    content = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n    const parsed = JSON.parse(content);\n    moatScore = Math.min(10, Math.max(0, parsed.moatScore || 5));\n    strengths = parsed.strengths || strengths;\n    concerns = parsed.concerns || concerns;\n    thesis = parsed.thesis || thesis;\n  }\n} catch (e) {\n  console.log('AI parse error:', e.message);\n}\n\nconst totalScore = Math.round(\n  stock.valuationScore +\n  stock.qualityScore +\n  stock.growthScore +\n  stock.dividendScore +\n  moatScore\n);\n\nlet classification;\nif (totalScore >= 80) classification = 'Excellent';\nelse if (totalScore >= 70) classification = 'Good';\nelse if (totalScore >= 60) classification = 'Fair';\nelse if (totalScore >= 50) classification = 'Average';\nelse classification = 'Below Average';\n\nreturn [{\n  json: {\n    symbol: stock.symbol,\n    companyName: stock.companyName,\n    sector: stock.sector,\n    industry: stock.industry,\n    exchange: stock.exchange,\n    marketCapB: stock.marketCapB,\n    price: stock.price,\n    \n    totalScore: totalScore,\n    classification: classification,\n    valuationScore: stock.valuationScore,\n    qualityScore: stock.qualityScore,\n    growthScore: stock.growthScore,\n    dividendScore: stock.dividendScore,\n    moatScore: moatScore,\n    \n    peRatio: stock.peRatio,\n    roe: Math.round(stock.roe * 10000) / 100,\n    debtEquity: stock.debtEquity,\n    dividendYield: Math.round(stock.dividendYield * 10000) / 100,\n    \n    strengths: strengths.join(' | '),\n    concerns: concerns.join(' | '),\n    thesis: thesis,\n    \n    scoringDate: new Date().toISOString().split('T')[0],\n    sheetId: stock.sheetId\n  }\n}];"
+      },
+      "id": "code-final",
+      "name": "Final Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 0]
+    },
+    {
+      "parameters": {
+        "amount": 1000
+      },
+      "id": "wait-1",
+      "name": "Rate Limit",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1980, 0],
+      "webhookId": "wait-2"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-1",
+      "name": "Collect All",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [2200, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allData = $input.first().json.data || [];\n\n// Filter and sort by total score\nconst valid = allData.filter(s => s.symbol && s.totalScore);\nvalid.sort((a, b) => b.totalScore - a.totalScore);\n\n// Add rank\nreturn valid.map((stock, index) => ({\n  json: {\n    rank: index + 1,\n    symbol: stock.symbol,\n    companyName: stock.companyName,\n    sector: stock.sector,\n    industry: stock.industry,\n    marketCapB: stock.marketCapB,\n    price: stock.price,\n    totalScore: stock.totalScore,\n    classification: stock.classification,\n    valuationScore: stock.valuationScore,\n    qualityScore: stock.qualityScore,\n    growthScore: stock.growthScore,\n    dividendScore: stock.dividendScore,\n    moatScore: stock.moatScore,\n    peRatio: stock.peRatio,\n    roe: stock.roe,\n    debtEquity: stock.debtEquity,\n    dividendYield: stock.dividendYield,\n    strengths: stock.strengths,\n    concerns: stock.concerns,\n    thesis: stock.thesis,\n    scoringDate: stock.scoringDate\n  }\n}));"
+      },
+      "id": "code-rank",
+      "name": "Rank Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2420, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.sheetId }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage2_Scored"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Write Scores",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2640, 0]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Config", "type": "main", "index": 0 }]]
+    },
+    "Config": {
+      "main": [[{ "node": "Read Stage 1", "type": "main", "index": 0 }]]
+    },
+    "Read Stage 1": {
+      "main": [[{ "node": "Prepare Stocks", "type": "main", "index": 0 }]]
+    },
+    "Prepare Stocks": {
+      "main": [[{ "node": "Batch 5", "type": "main", "index": 0 }]]
+    },
+    "Batch 5": {
+      "main": [
+        [{ "node": "Get Key Metrics", "type": "main", "index": 0 }],
+        [{ "node": "Collect All", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Key Metrics": {
+      "main": [[{ "node": "Calculate Scores", "type": "main", "index": 0 }]]
+    },
+    "Calculate Scores": {
+      "main": [[{ "node": "AI Analysis", "type": "main", "index": 0 }]]
+    },
+    "AI Analysis": {
+      "main": [[{ "node": "Final Score", "type": "main", "index": 0 }]]
+    },
+    "Final Score": {
+      "main": [[{ "node": "Rate Limit", "type": "main", "index": 0 }]]
+    },
+    "Rate Limit": {
+      "main": [[{ "node": "Batch 5", "type": "main", "index": 0 }]]
+    },
+    "Collect All": {
+      "main": [[{ "node": "Rank Results", "type": "main", "index": 0 }]]
+    },
+    "Rank Results": {
+      "main": [[{ "node": "Write Scores", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
