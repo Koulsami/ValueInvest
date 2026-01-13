@@ -1,0 +1,135 @@
+{
+  "name": "Stage 3 - Deep Analysis Reports",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage2_Scored"
+        },
+        "options": {}
+      },
+      "id": "sheets-read",
+      "name": "Read Stage 2",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get top 10 stocks by total_score\nconst items = $input.all();\n\n// Sort by total_score descending\nconst sorted = items.sort((a, b) => {\n  const scoreA = parseFloat(a.json.total_score) || 0;\n  const scoreB = parseFloat(b.json.total_score) || 0;\n  return scoreB - scoreA;\n});\n\n// Take top 10\nconst top10 = sorted.slice(0, 10);\n\nconsole.log(`Selected top ${top10.length} stocks for deep analysis`);\nreturn top10;"
+      },
+      "id": "code-top10",
+      "name": "Top 10 by Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_OPENAI_API_KEY_HERE"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"temperature\": 0.4,\n  \"max_tokens\": 2000,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a senior equity research analyst specializing in value investing. Write comprehensive investment analysis reports. Be specific with numbers and facts. Format your response in clean Markdown with clear sections.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Write a detailed value investment analysis report for {{ $json.symbol }} ({{ $json.company_name }}).\\n\\nCompany Data:\\n- Sector: {{ $json.sector }}\\n- Industry: {{ $json.industry }}\\n- Market Cap: {{ $json.market_cap_display }}\\n- Stock Price: ${{ $json.price }}\\n- P/E Ratio: {{ $json.pe_ratio }}\\n- Beta: {{ $json.beta }}\\n- Dividend Yield: {{ $json.dividend_yield_pct }}\\n- ROE: {{ $json.roe_pct }}\\n- Debt/Equity: {{ $json.debt_equity }}\\n- Value Score: {{ $json.total_score }}/100\\n- Score Category: {{ $json.score_category }}\\n\\nInclude these sections in your report:\\n\\n# Executive Summary\\n(2-3 sentences on investment thesis)\\n\\n# Business Overview\\n(What the company does, market position, revenue sources)\\n\\n# Competitive Moat Analysis\\n(Identify and rate moat sources: brand, network effects, switching costs, cost advantages, intangible assets)\\n\\n# Financial Health Assessment\\n(Analyze the metrics provided, compare to industry benchmarks)\\n\\n# Growth Prospects\\n(Future growth drivers and catalysts)\\n\\n# Key Risks\\n(Top 3-5 risks investors should consider)\\n\\n# Management & Capital Allocation\\n(Brief note on management quality and capital deployment)\\n\\n# Valuation Assessment\\n(Is the stock fairly valued, undervalued, or overvalued?)\\n\\n# Investment Recommendation\\n(BUY, HOLD, or WATCH with target price range and timeframe)\\n\\nBe factual and specific. Use the provided data.\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 60000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 3000
+            }
+          }
+        }
+      },
+      "id": "http-openai",
+      "name": "AI Deep Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst stockData = $('Top 10 by Score').all();\nconst results = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const aiResp = items[i].json;\n  const stock = stockData[i]?.json || {};\n  \n  let report = 'Analysis unavailable.';\n  \n  try {\n    if (aiResp.choices && aiResp.choices[0]) {\n      report = aiResp.choices[0].message.content;\n    }\n  } catch (e) {\n    console.log('AI parse error:', e.message);\n  }\n  \n  // Create HTML report\n  const htmlReport = `\n<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <title>${stock.symbol} - Investment Analysis Report</title>\n  <style>\n    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; }\n    h1 { color: #1a365d; border-bottom: 3px solid #2c5282; padding-bottom: 10px; }\n    h2 { color: #2c5282; margin-top: 30px; }\n    .header { background: #ebf8ff; padding: 20px; border-radius: 8px; margin-bottom: 30px; }\n    .metric { display: inline-block; margin: 10px 20px 10px 0; }\n    .metric-label { font-size: 12px; color: #666; }\n    .metric-value { font-size: 18px; font-weight: bold; color: #1a365d; }\n    .score { font-size: 24px; color: #38a169; }\n    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }\n    ul { margin: 10px 0; }\n    li { margin: 5px 0; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>${stock.symbol} - ${stock.company_name}</h1>\n    <div class=\"metric\"><div class=\"metric-label\">Sector</div><div class=\"metric-value\">${stock.sector}</div></div>\n    <div class=\"metric\"><div class=\"metric-label\">Market Cap</div><div class=\"metric-value\">${stock.market_cap_display}</div></div>\n    <div class=\"metric\"><div class=\"metric-label\">Price</div><div class=\"metric-value\">$${stock.price}</div></div>\n    <div class=\"metric\"><div class=\"metric-label\">P/E Ratio</div><div class=\"metric-value\">${stock.pe_ratio}</div></div>\n    <div class=\"metric\"><div class=\"metric-label\">Value Score</div><div class=\"metric-value score\">${stock.total_score}/100</div></div>\n  </div>\n  \n  <div class=\"report-content\">\n    ${report.replace(/\\n/g, '<br>').replace(/# /g, '</p><h2>').replace(/\\*\\*/g, '<strong>').replace(/\\*/g, '<em>')}\n  </div>\n  \n  <div class=\"footer\">\n    <p>Generated on ${new Date().toISOString().split('T')[0]} | Value Investing Dashboard</p>\n    <p>Disclaimer: This report is for informational purposes only and does not constitute investment advice.</p>\n  </div>\n</body>\n</html>`;\n\n  results.push({\n    json: {\n      symbol: stock.symbol,\n      company_name: stock.company_name,\n      total_score: stock.total_score,\n      report_markdown: report,\n      report_html: htmlReport,\n      generated_at: new Date().toISOString()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "code-format",
+      "name": "Format Reports",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage3_Reports"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "sheets-write",
+      "name": "Save to Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1100, 0]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Read Stage 2", "type": "main", "index": 0 }]]
+    },
+    "Read Stage 2": {
+      "main": [[{ "node": "Top 10 by Score", "type": "main", "index": 0 }]]
+    },
+    "Top 10 by Score": {
+      "main": [[{ "node": "AI Deep Analysis", "type": "main", "index": 0 }]]
+    },
+    "AI Deep Analysis": {
+      "main": [[{ "node": "Format Reports", "type": "main", "index": 0 }]]
+    },
+    "Format Reports": {
+      "main": [[{ "node": "Save to Sheets", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
