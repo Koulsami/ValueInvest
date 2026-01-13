@@ -1,0 +1,355 @@
+{
+  "name": "Stage 1 - Stock Screening",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "fmpApiKey",
+              "value": "={{ $env.FMP_API_KEY }}"
+            }
+          ],
+          "number": [
+            {
+              "name": "minMarketCap",
+              "value": 1000000000
+            },
+            {
+              "name": "maxPE",
+              "value": 15
+            },
+            {
+              "name": "minROE",
+              "value": 0.12
+            },
+            {
+              "name": "maxDebtEquity",
+              "value": 1.0
+            },
+            {
+              "name": "minCurrentRatio",
+              "value": 1.2
+            },
+            {
+              "name": "batchSize",
+              "value": 50
+            },
+            {
+              "name": "targetCompanies",
+              "value": 500
+            }
+          ],
+          "array": [
+            {
+              "name": "excludedSectors",
+              "value": ["Financial Services", "Real Estate"]
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "config-1",
+      "name": "Set Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://financialmodelingprep.com/api/v3/stock-screener",
+        "options": {
+          "timeout": 30000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "marketCapMoreThan",
+              "value": "={{ $json.minMarketCap }}"
+            },
+            {
+              "name": "exchange",
+              "value": "NASDAQ,NYSE"
+            },
+            {
+              "name": "isActivelyTrading",
+              "value": "true"
+            },
+            {
+              "name": "isEtf",
+              "value": "false"
+            },
+            {
+              "name": "isFund",
+              "value": "false"
+            },
+            {
+              "name": "limit",
+              "value": "5000"
+            },
+            {
+              "name": "apikey",
+              "value": "={{ $json.fmpApiKey }}"
+            }
+          ]
+        }
+      },
+      "id": "http-screener",
+      "name": "FMP Stock Screener",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get config from previous node\nconst config = $('Set Config').first().json;\nconst stocks = $input.first().json;\n\nif (!Array.isArray(stocks)) {\n  throw new Error('Stock screener did not return an array');\n}\n\n// Filter out excluded sectors\nconst excludedSectors = config.excludedSectors || ['Financial Services', 'Real Estate'];\n\nconst filteredStocks = stocks.filter(stock => {\n  return !excludedSectors.includes(stock.sector);\n});\n\nconsole.log(`Screener returned ${stocks.length} stocks`);\nconsole.log(`After sector exclusion: ${filteredStocks.length} stocks`);\n\n// Return as individual items for batching\nreturn filteredStocks.map(stock => ({\n  json: {\n    symbol: stock.symbol,\n    companyName: stock.companyName,\n    sector: stock.sector,\n    industry: stock.industry,\n    marketCap: stock.marketCap,\n    price: stock.price,\n    exchange: stock.exchangeShortName,\n    config: config\n  }\n}));"
+      },
+      "id": "code-extract",
+      "name": "Extract & Filter Sectors",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "batchSize": 50,
+        "options": {}
+      },
+      "id": "batch-1",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/api/v3/ratios-ttm/{{ $json.symbol }}",
+        "options": {
+          "timeout": 10000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $json.config.fmpApiKey }}"
+            }
+          ]
+        }
+      },
+      "id": "http-ratios",
+      "name": "FMP Ratios TTM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1100, 0],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge stock info with ratios\nconst stockInfo = $('Split In Batches').first().json;\nconst ratiosResponse = $input.first().json;\n\n// Ratios TTM returns an array with one element\nconst ratios = Array.isArray(ratiosResponse) ? ratiosResponse[0] : ratiosResponse;\n\nif (!ratios || !ratios.peRatioTTM) {\n  // Skip stocks without ratio data\n  return [];\n}\n\nreturn [{\n  json: {\n    symbol: stockInfo.symbol,\n    companyName: stockInfo.companyName,\n    sector: stockInfo.sector,\n    industry: stockInfo.industry,\n    marketCap: stockInfo.marketCap,\n    price: stockInfo.price,\n    exchange: stockInfo.exchange,\n    // Ratios\n    peRatio: ratios.peRatioTTM,\n    pbRatio: ratios.priceToBookRatioTTM,\n    roe: ratios.returnOnEquityTTM,\n    roa: ratios.returnOnAssetsTTM,\n    debtEquity: ratios.debtEquityRatioTTM,\n    currentRatio: ratios.currentRatioTTM,\n    dividendYield: ratios.dividendYieldTTM || 0,\n    grossMargin: ratios.grossProfitMarginTTM,\n    operatingMargin: ratios.operatingProfitMarginTTM,\n    netMargin: ratios.netProfitMarginTTM,\n    // Config for filtering\n    config: stockInfo.config\n  }\n}];"
+      },
+      "id": "code-merge",
+      "name": "Merge Stock & Ratios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 0]
+    },
+    {
+      "parameters": {
+        "amount": 200
+      },
+      "id": "wait-1",
+      "name": "Rate Limit Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1540, 0],
+      "webhookId": "rate-limit"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-1",
+      "name": "Aggregate All Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1760, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.first().json.data || $input.all().map(i => i.json);\n\n// Apply value investing filters\nconst filtered = items.filter(stock => {\n  if (!stock.peRatio || !stock.roe) return false;\n  \n  const config = stock.config || {};\n  const maxPE = config.maxPE || 15;\n  const minROE = config.minROE || 0.12;\n  const maxDebtEquity = config.maxDebtEquity || 1.0;\n  const minCurrentRatio = config.minCurrentRatio || 1.2;\n  \n  return (\n    stock.peRatio > 0 &&\n    stock.peRatio < maxPE &&\n    stock.roe > minROE &&\n    (stock.debtEquity === null || stock.debtEquity < maxDebtEquity) &&\n    (stock.currentRatio === null || stock.currentRatio > minCurrentRatio)\n  );\n});\n\nconsole.log(`Applied filters: ${filtered.length} stocks passed`);\n\n// Sort by market cap descending\nfiltered.sort((a, b) => (b.marketCap || 0) - (a.marketCap || 0));\n\n// Format output (remove config from final output)\nreturn filtered.slice(0, 500).map((stock, index) => ({\n  json: {\n    rank: index + 1,\n    symbol: stock.symbol,\n    companyName: stock.companyName,\n    sector: stock.sector,\n    industry: stock.industry,\n    exchange: stock.exchange,\n    marketCap: stock.marketCap,\n    marketCapFormatted: `$${(stock.marketCap / 1e9).toFixed(2)}B`,\n    price: stock.price,\n    peRatio: Math.round(stock.peRatio * 100) / 100,\n    pbRatio: Math.round((stock.pbRatio || 0) * 100) / 100,\n    roe: Math.round((stock.roe || 0) * 10000) / 100,\n    roa: Math.round((stock.roa || 0) * 10000) / 100,\n    debtEquity: Math.round((stock.debtEquity || 0) * 100) / 100,\n    currentRatio: Math.round((stock.currentRatio || 0) * 100) / 100,\n    dividendYield: Math.round((stock.dividendYield || 0) * 10000) / 100,\n    grossMargin: Math.round((stock.grossMargin || 0) * 10000) / 100,\n    operatingMargin: Math.round((stock.operatingMargin || 0) * 10000) / 100,\n    netMargin: Math.round((stock.netMargin || 0) * 10000) / 100,\n    screeningDate: new Date().toISOString().split('T')[0]\n  }\n}));"
+      },
+      "id": "code-filter",
+      "name": "Apply Value Filters",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1980, 0]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "sheets-1",
+      "name": "Write to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [2200, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Config": {
+      "main": [
+        [
+          {
+            "node": "FMP Stock Screener",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FMP Stock Screener": {
+      "main": [
+        [
+          {
+            "node": "Extract & Filter Sectors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Filter Sectors": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "FMP Ratios TTM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aggregate All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FMP Ratios TTM": {
+      "main": [
+        [
+          {
+            "node": "Merge Stock & Ratios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Stock & Ratios": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Wait": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All Results": {
+      "main": [
+        [
+          {
+            "node": "Apply Value Filters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Value Filters": {
+      "main": [
+        [
+          {
+            "node": "Write to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "value-investing"
+    }
+  ]
+}

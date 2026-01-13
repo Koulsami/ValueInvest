@@ -1,0 +1,32 @@
+# Environment files (contain secrets)
+.env
+.env.local
+.env.*.local
+
+# n8n data (local dev)
+.n8n/
+n8n_data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Data files (generated)
+data/*.json
+data/deep-analysis/
+
+# Node modules (if any scripts added later)
+node_modules/
+
+# Docker
+*.pid

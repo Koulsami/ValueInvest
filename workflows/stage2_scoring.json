@@ -1,0 +1,312 @@
+{
+  "name": "Stage 2 - Value Scoring",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-1",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage1_Screened"
+        }
+      },
+      "id": "sheets-read",
+      "name": "Read Stage 1 Results",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [220, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 10,
+        "options": {}
+      },
+      "id": "batch-1",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/api/v3/profile/{{ $json.symbol }}",
+        "options": { "timeout": 10000 },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [{ "name": "apikey", "value": "={{ $env.FMP_API_KEY }}" }]
+        }
+      },
+      "id": "http-profile",
+      "name": "Get Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [660, -150],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/api/v3/key-metrics-ttm/{{ $json.symbol }}",
+        "options": { "timeout": 10000 },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [{ "name": "apikey", "value": "={{ $env.FMP_API_KEY }}" }]
+        }
+      },
+      "id": "http-metrics",
+      "name": "Get Key Metrics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [660, -50],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/api/v3/ratios-ttm/{{ $json.symbol }}",
+        "options": { "timeout": 10000 },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [{ "name": "apikey", "value": "={{ $env.FMP_API_KEY }}" }]
+        }
+      },
+      "id": "http-ratios",
+      "name": "Get Ratios",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [660, 50],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://financialmodelingprep.com/api/v3/financial-growth/{{ $json.symbol }}",
+        "options": { "timeout": 10000 },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.FMP_API_KEY }}" },
+            { "name": "period", "value": "annual" },
+            { "name": "limit", "value": "3" }
+          ]
+        }
+      },
+      "id": "http-growth",
+      "name": "Get Growth",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [660, 150],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "merge-1",
+      "name": "Merge API Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all API responses\nconst batchItem = $('Split In Batches').first().json;\nconst profile = $('Get Profile').first().json;\nconst keyMetrics = $('Get Key Metrics').first().json;\nconst ratios = $('Get Ratios').first().json;\nconst growth = $('Get Growth').first().json;\n\n// Extract data from arrays\nconst p = Array.isArray(profile) ? profile[0] : profile;\nconst km = Array.isArray(keyMetrics) ? keyMetrics[0] : keyMetrics;\nconst r = Array.isArray(ratios) ? ratios[0] : ratios;\nconst g = Array.isArray(growth) ? growth : [];\n\nif (!p || !r) {\n  return []; // Skip if missing critical data\n}\n\n// Calculate average growth over 3 years\nconst avgRevGrowth = g.length > 0\n  ? g.reduce((sum, item) => sum + (item.revenueGrowth || 0), 0) / g.length\n  : 0;\nconst avgEpsGrowth = g.length > 0\n  ? g.reduce((sum, item) => sum + (item.epsgrowth || 0), 0) / g.length\n  : 0;\nconst avgFcfGrowth = g.length > 0\n  ? g.reduce((sum, item) => sum + (item.freeCashFlowGrowth || 0), 0) / g.length\n  : 0;\n\nreturn [{\n  json: {\n    symbol: batchItem.symbol,\n    companyName: p.companyName || batchItem.companyName,\n    sector: p.sector || batchItem.sector,\n    industry: p.industry || batchItem.industry,\n    description: (p.description || '').substring(0, 500),\n    marketCap: p.mktCap || batchItem.marketCap,\n    price: p.price || batchItem.price,\n    exchange: batchItem.exchange,\n    \n    // Valuation metrics\n    peRatio: r.peRatioTTM || km.peRatioTTM || batchItem.peRatio,\n    pbRatio: r.priceToBookRatioTTM || km.pbRatioTTM,\n    evEbitda: km.enterpriseValueOverEBITDATTM,\n    pFcf: r.priceToFreeCashFlowsRatioTTM,\n    \n    // Quality metrics\n    roe: r.returnOnEquityTTM || batchItem.roe,\n    roa: r.returnOnAssetsTTM,\n    roic: km.roicTTM,\n    netMargin: r.netProfitMarginTTM || batchItem.netMargin,\n    grossMargin: r.grossProfitMarginTTM || batchItem.grossMargin,\n    operatingMargin: r.operatingProfitMarginTTM,\n    debtEquity: r.debtEquityRatioTTM || batchItem.debtEquity,\n    currentRatio: r.currentRatioTTM || batchItem.currentRatio,\n    interestCoverage: r.interestCoverageTTM,\n    \n    // Growth metrics\n    revenueGrowth: avgRevGrowth,\n    epsGrowth: avgEpsGrowth,\n    fcfGrowth: avgFcfGrowth,\n    \n    // Dividend metrics\n    dividendYield: r.dividendYieldTTM || km.dividendYieldTTM || batchItem.dividendYield || 0,\n    payoutRatio: r.payoutRatioTTM || km.payoutRatioTTM || 0\n  }\n}];"
+      },
+      "id": "code-merge",
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\n// ===== VALUATION SCORE (30 points max) =====\nconst pe = data.peRatio || 20;\nconst pb = data.pbRatio || 3;\nconst evEbitda = data.evEbitda || 15;\nconst pFcf = data.pFcf || 20;\n\nconst peScore = Math.max(0, Math.min(12, 12 - (pe - 5) * 0.8));\nconst pbScore = Math.max(0, Math.min(12, 12 - pb * 4));\nconst evScore = Math.max(0, Math.min(12, 12 - (evEbitda - 4) * 0.8));\nconst pfcfScore = Math.max(0, Math.min(12, 12 - (pFcf - 5) * 0.6));\nconst valuationScore = (peScore * 0.40 + pbScore * 0.25 + evScore * 0.20 + pfcfScore * 0.15) * 2.5;\n\n// ===== QUALITY SCORE (25 points max) =====\nconst roe = data.roe || 0;\nconst roic = data.roic || 0;\nconst netMargin = data.netMargin || 0;\nconst debtEquity = data.debtEquity || 2;\nconst interestCoverage = data.interestCoverage || 5;\n\nconst roeScore = Math.min(12, Math.abs(roe) * 40);\nconst roicScore = Math.min(12, Math.abs(roic) * 60);\nconst marginScore = Math.min(12, Math.abs(netMargin) * 60);\nconst debtScore = Math.max(0, 12 - Math.abs(debtEquity) * 4);\nconst coverageScore = Math.min(12, Math.max(0, interestCoverage) * 1.2);\nconst qualityScore = (roeScore * 0.30 + roicScore * 0.25 + marginScore * 0.20 + debtScore * 0.15 + coverageScore * 0.10) * 2.08;\n\n// ===== GROWTH SCORE (20 points max) =====\nconst revGrowth = data.revenueGrowth || 0;\nconst epsGrowth = data.epsGrowth || 0;\nconst fcfGrowth = data.fcfGrowth || 0;\n\nconst revGrowthScore = Math.min(12, Math.max(0, revGrowth * 60));\nconst epsGrowthScore = Math.min(12, Math.max(0, epsGrowth * 40));\nconst fcfGrowthScore = Math.min(12, Math.max(0, fcfGrowth * 40));\nconst growthScore = (revGrowthScore * 0.40 + epsGrowthScore * 0.35 + fcfGrowthScore * 0.25) * 1.67;\n\n// ===== DIVIDEND SCORE (15 points max) =====\nlet dividendScore = 0;\nconst divYield = data.dividendYield || 0;\nconst payoutRatio = data.payoutRatio || 0;\n\nif (divYield > 0) {\n  const yieldScore = Math.min(12, divYield * 300);\n  const payoutScore = Math.max(0, 12 - Math.abs(payoutRatio - 0.40) * 20);\n  dividendScore = (yieldScore * 0.60 + payoutScore * 0.40) * 1.25;\n}\n\n// Base total (without moat - will be added by AI)\nconst baseTotal = valuationScore + qualityScore + growthScore + dividendScore;\n\nreturn [{\n  json: {\n    ...data,\n    scores: {\n      valuation: Math.round(valuationScore * 10) / 10,\n      quality: Math.round(qualityScore * 10) / 10,\n      growth: Math.round(growthScore * 10) / 10,\n      dividend: Math.round(dividendScore * 10) / 10,\n      baseTotal: Math.round(baseTotal * 10) / 10\n    },\n    scoreDetails: {\n      pe: Math.round(peScore * 10) / 10,\n      pb: Math.round(pbScore * 10) / 10,\n      evEbitda: Math.round(evScore * 10) / 10,\n      pFcf: Math.round(pfcfScore * 10) / 10,\n      roe: Math.round(roeScore * 10) / 10,\n      roic: Math.round(roicScore * 10) / 10,\n      margin: Math.round(marginScore * 10) / 10,\n      debt: Math.round(debtScore * 10) / 10\n    }\n  }\n}];"
+      },
+      "id": "code-scores",
+      "name": "Calculate Base Scores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 0]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a value investment analyst. Analyze company data and respond ONLY with valid JSON. No markdown, no explanations outside the JSON.\n\nProvide:\n1. moatScore (0-10): Based on competitive advantages, brand strength, switching costs, network effects\n2. strengths: Array of 2-3 key investment strengths\n3. concerns: Array of 2-3 key investment concerns  \n4. thesis: 2-sentence investment thesis"
+            },
+            {
+              "role": "user",
+              "content": "=Analyze {{ $json.companyName }} ({{ $json.symbol }}) for value investing:\n\nSector: {{ $json.sector }}\nIndustry: {{ $json.industry }}\nDescription: {{ $json.description }}\n\nValuation: P/E={{ $json.peRatio }}, P/B={{ $json.pbRatio }}, EV/EBITDA={{ $json.evEbitda }}\nQuality: ROE={{ ($json.roe * 100).toFixed(1) }}%, ROIC={{ (($json.roic || 0) * 100).toFixed(1) }}%, D/E={{ $json.debtEquity }}\nGrowth: Revenue={{ (($json.revenueGrowth || 0) * 100).toFixed(1) }}%, EPS={{ (($json.epsGrowth || 0) * 100).toFixed(1) }}%\nDividend: Yield={{ (($json.dividendYield || 0) * 100).toFixed(2) }}%\n\nBase Score: {{ $json.scores.baseTotal }}/90\n\nRespond with JSON only:\n{\"moatScore\": <0-10>, \"strengths\": [\"...\"], \"concerns\": [\"...\"], \"thesis\": \"...\"}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokens": 500
+        }
+      },
+      "id": "openai-1",
+      "name": "AI Moat Analysis",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.8,
+      "position": [1540, 0],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-cred",
+          "name": "OpenAI"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Calculate Base Scores').first().json;\nconst aiResponse = $input.first().json;\n\n// Parse AI response\nlet moatScore = 5;\nlet strengths = ['Requires further analysis'];\nlet concerns = ['Requires further analysis'];\nlet thesis = 'AI analysis unavailable.';\n\ntry {\n  // Handle different response formats from OpenAI node\n  let content = '';\n  if (aiResponse.message?.content) {\n    content = aiResponse.message.content;\n  } else if (aiResponse.choices?.[0]?.message?.content) {\n    content = aiResponse.choices[0].message.content;\n  } else if (typeof aiResponse === 'string') {\n    content = aiResponse;\n  }\n  \n  // Clean up response - remove markdown code blocks if present\n  content = content.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n  \n  const parsed = JSON.parse(content);\n  moatScore = Math.min(10, Math.max(0, parsed.moatScore || 5));\n  strengths = parsed.strengths || strengths;\n  concerns = parsed.concerns || concerns;\n  thesis = parsed.thesis || thesis;\n} catch (e) {\n  console.log('AI parse error:', e.message);\n}\n\n// Calculate final score\nconst totalScore = Math.round(\n  data.scores.valuation +\n  data.scores.quality +\n  data.scores.growth +\n  data.scores.dividend +\n  moatScore\n);\n\n// Classification\nlet classification;\nif (totalScore >= 80) classification = 'Excellent';\nelse if (totalScore >= 70) classification = 'Good';\nelse if (totalScore >= 60) classification = 'Fair';\nelse if (totalScore >= 50) classification = 'Below Average';\nelse classification = 'Poor';\n\nreturn [{\n  json: {\n    rank: 0, // Will be set after sorting\n    symbol: data.symbol,\n    companyName: data.companyName,\n    sector: data.sector,\n    industry: data.industry,\n    exchange: data.exchange,\n    marketCap: data.marketCap,\n    marketCapFormatted: `$${((data.marketCap || 0) / 1e9).toFixed(2)}B`,\n    price: data.price,\n    \n    // Scores\n    totalScore: totalScore,\n    maxScore: 100,\n    classification: classification,\n    valuationScore: data.scores.valuation,\n    qualityScore: data.scores.quality,\n    growthScore: data.scores.growth,\n    dividendScore: data.scores.dividend,\n    moatScore: moatScore,\n    \n    // Key metrics for dashboard\n    peRatio: Math.round((data.peRatio || 0) * 100) / 100,\n    pbRatio: Math.round((data.pbRatio || 0) * 100) / 100,\n    roe: Math.round((data.roe || 0) * 10000) / 100,\n    roic: Math.round((data.roic || 0) * 10000) / 100,\n    debtEquity: Math.round((data.debtEquity || 0) * 100) / 100,\n    dividendYield: Math.round((data.dividendYield || 0) * 10000) / 100,\n    revenueGrowth: Math.round((data.revenueGrowth || 0) * 10000) / 100,\n    netMargin: Math.round((data.netMargin || 0) * 10000) / 100,\n    \n    // AI Analysis\n    strengths: strengths.join(' | '),\n    concerns: concerns.join(' | '),\n    thesis: thesis,\n    \n    // Metadata\n    scoringDate: new Date().toISOString().split('T')[0]\n  }\n}];"
+      },
+      "id": "code-final",
+      "name": "Calculate Final Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 0]
+    },
+    {
+      "parameters": {
+        "amount": 250
+      },
+      "id": "wait-1",
+      "name": "Rate Limit",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1980, 0],
+      "webhookId": "rate-limit-2"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "aggregate-1",
+      "name": "Aggregate All",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [2200, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.first().json.data || $input.all().map(i => i.json);\n\n// Sort by total score descending\nitems.sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));\n\n// Add ranking\nreturn items.map((item, index) => ({\n  json: {\n    ...item,\n    rank: index + 1\n  }\n}));"
+      },
+      "id": "code-rank",
+      "name": "Sort & Rank",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2420, 0]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Stage2_Scored"
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "sheets-write",
+      "name": "Write Scored Results",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [2640, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheets-cred",
+          "name": "Google Sheets"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [[{ "node": "Read Stage 1 Results", "type": "main", "index": 0 }]]
+    },
+    "Read Stage 1 Results": {
+      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          { "node": "Get Profile", "type": "main", "index": 0 },
+          { "node": "Get Key Metrics", "type": "main", "index": 0 },
+          { "node": "Get Ratios", "type": "main", "index": 0 },
+          { "node": "Get Growth", "type": "main", "index": 0 }
+        ],
+        [{ "node": "Aggregate All", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Profile": {
+      "main": [[{ "node": "Merge API Results", "type": "main", "index": 0 }]]
+    },
+    "Get Key Metrics": {
+      "main": [[{ "node": "Merge API Results", "type": "main", "index": 1 }]]
+    },
+    "Get Ratios": {
+      "main": [[{ "node": "Merge API Results", "type": "main", "index": 2 }]]
+    },
+    "Get Growth": {
+      "main": [[{ "node": "Merge API Results", "type": "main", "index": 3 }]]
+    },
+    "Merge API Results": {
+      "main": [[{ "node": "Merge Data", "type": "main", "index": 0 }]]
+    },
+    "Merge Data": {
+      "main": [[{ "node": "Calculate Base Scores", "type": "main", "index": 0 }]]
+    },
+    "Calculate Base Scores": {
+      "main": [[{ "node": "AI Moat Analysis", "type": "main", "index": 0 }]]
+    },
+    "AI Moat Analysis": {
+      "main": [[{ "node": "Calculate Final Score", "type": "main", "index": 0 }]]
+    },
+    "Calculate Final Score": {
+      "main": [[{ "node": "Rate Limit", "type": "main", "index": 0 }]]
+    },
+    "Rate Limit": {
+      "main": [[{ "node": "Split In Batches", "type": "main", "index": 0 }]]
+    },
+    "Aggregate All": {
+      "main": [[{ "node": "Sort & Rank", "type": "main", "index": 0 }]]
+    },
+    "Sort & Rank": {
+      "main": [[{ "node": "Write Scored Results", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [{ "name": "value-investing" }]
+}
