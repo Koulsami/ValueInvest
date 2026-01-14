@@ -14,7 +14,7 @@
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
         },
         "sheetName": {
           "__rl": true,
@@ -51,7 +51,7 @@
         "options": { "timeout": 10000 },
         "sendQuery": true,
         "queryParameters": {
-          "parameters": [{ "name": "apikey", "value": "={{ $env.FMP_API_KEY }}" }]
+          "parameters": [{ "name": "apikey", "value": "4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt" }]
         }
       },
       "id": "http-profile",
@@ -67,7 +67,7 @@
         "options": { "timeout": 10000 },
         "sendQuery": true,
         "queryParameters": {
-          "parameters": [{ "name": "apikey", "value": "={{ $env.FMP_API_KEY }}" }]
+          "parameters": [{ "name": "apikey", "value": "4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt" }]
         }
       },
       "id": "http-metrics",
@@ -83,7 +83,7 @@
         "options": { "timeout": 10000 },
         "sendQuery": true,
         "queryParameters": {
-          "parameters": [{ "name": "apikey", "value": "={{ $env.FMP_API_KEY }}" }]
+          "parameters": [{ "name": "apikey", "value": "4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt" }]
         }
       },
       "id": "http-ratios",
@@ -100,7 +100,7 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $env.FMP_API_KEY }}" },
+            { "name": "apikey", "value": "4x1WuP5kwdOeGA0lejzbQ3gAq2Ytcmpt" },
             { "name": "period", "value": "annual" },
             { "name": "limit", "value": "3" }
           ]
@@ -226,7 +226,7 @@
         "documentId": {
           "__rl": true,
           "mode": "id",
-          "value": "={{ $env.GOOGLE_SHEET_ID }}"
+          "value": "1jMRAtD1tUQSYYD1gLWoHNw1IoBbUP-SPpBbStj01be0"
         },
         "sheetName": {
           "__rl": true,
