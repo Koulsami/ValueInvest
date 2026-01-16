@@ -1,0 +1,261 @@
+{
+  "id": "investment-v1",
+  "name": "Value Investment Scoring",
+  "version": "2.0.0-stage2-aligned",
+  "vertical": "investment",
+  "description": "Value investment scoring using exact formulas from stage2_scoring.json workflow. 5 dimensions: Valuation (30pts), Quality (25pts), Growth (20pts), Dividend (15pts), Moat (10pts). Total: 100 points.",
+  "_formulaSource": "workflows/stage2_scoring.json - Calculate Base Scores node",
+  "totalMaxScore": 100,
+  "aggregation": "weighted_average",
+  "dimensions": [
+    {
+      "id": "valuation",
+      "name": "Valuation",
+      "weight": 0.30,
+      "maxScore": 30,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "pe-ratio": 0.40,
+        "pb-ratio": 0.25,
+        "ev-ebitda": 0.20,
+        "p-fcf": 0.15
+      },
+      "rules": [
+        {
+          "id": "pe-ratio",
+          "field": "peRatio",
+          "operator": "lt",
+          "value": 25,
+          "scoreFormula": "Math.max(0, Math.min(12, 12 - (value - 5) * 0.8))",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "P/E ratio score - lower is better, baseline 5x"
+        },
+        {
+          "id": "pb-ratio",
+          "field": "pbRatio",
+          "operator": "lt",
+          "value": 5,
+          "scoreFormula": "Math.max(0, Math.min(12, 12 - value * 4))",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "P/B ratio score - lower is better"
+        },
+        {
+          "id": "ev-ebitda",
+          "field": "evEbitda",
+          "operator": "lt",
+          "value": 20,
+          "scoreFormula": "Math.max(0, Math.min(12, 12 - (value - 4) * 0.8))",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "EV/EBITDA score - lower is better, baseline 4x"
+        },
+        {
+          "id": "p-fcf",
+          "field": "pFcf",
+          "operator": "lt",
+          "value": 25,
+          "scoreFormula": "Math.max(0, Math.min(12, 12 - (value - 5) * 0.6))",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "Price to FCF score - lower is better, baseline 5x"
+        }
+      ]
+    },
+    {
+      "id": "quality",
+      "name": "Quality",
+      "weight": 0.25,
+      "maxScore": 25,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "roe": 0.30,
+        "roic": 0.25,
+        "net-margin": 0.20,
+        "debt-equity": 0.15,
+        "interest-coverage": 0.10
+      },
+      "rules": [
+        {
+          "id": "roe",
+          "field": "roe",
+          "operator": "gt",
+          "value": 0,
+          "scoreFormula": "Math.min(12, Math.abs(value) * 40)",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "ROE score - higher is better, 20% ROE = 8 points"
+        },
+        {
+          "id": "roic",
+          "field": "roic",
+          "operator": "gt",
+          "value": 0,
+          "scoreFormula": "Math.min(12, Math.abs(value) * 60)",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "ROIC score - higher is better, 15% ROIC = 9 points"
+        },
+        {
+          "id": "net-margin",
+          "field": "netMargin",
+          "operator": "gt",
+          "value": 0,
+          "scoreFormula": "Math.min(12, Math.abs(value) * 60)",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "Net margin score - higher is better, 10% margin = 6 points"
+        },
+        {
+          "id": "debt-equity",
+          "field": "debtEquity",
+          "operator": "lt",
+          "value": 2,
+          "scoreFormula": "Math.max(0, 12 - Math.abs(value) * 4)",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "Debt/Equity score - lower is better, penalty of 4x per ratio point"
+        },
+        {
+          "id": "interest-coverage",
+          "field": "interestCoverage",
+          "operator": "gt",
+          "value": 2,
+          "scoreFormula": "Math.min(12, Math.max(0, value) * 1.2)",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "Interest coverage score - higher is better, 10x coverage = 12 points"
+        }
+      ]
+    },
+    {
+      "id": "growth",
+      "name": "Growth",
+      "weight": 0.20,
+      "maxScore": 20,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "revenue-growth": 0.40,
+        "eps-growth": 0.35,
+        "fcf-growth": 0.25
+      },
+      "rules": [
+        {
+          "id": "revenue-growth",
+          "field": "revenueGrowth",
+          "operator": "gt",
+          "value": 0,
+          "scoreFormula": "Math.min(12, Math.max(0, value * 60))",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "Revenue growth score - 15% growth = 9 points"
+        },
+        {
+          "id": "eps-growth",
+          "field": "epsGrowth",
+          "operator": "gt",
+          "value": 0,
+          "scoreFormula": "Math.min(12, Math.max(0, value * 40))",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "EPS growth score - 20% growth = 8 points"
+        },
+        {
+          "id": "fcf-growth",
+          "field": "fcfGrowth",
+          "operator": "gt",
+          "value": 0,
+          "scoreFormula": "Math.min(12, Math.max(0, value * 40))",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "FCF growth score - 20% growth = 8 points"
+        }
+      ]
+    },
+    {
+      "id": "dividend",
+      "name": "Dividend",
+      "weight": 0.15,
+      "maxScore": 15,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "dividend-yield": 0.60,
+        "payout-ratio": 0.40
+      },
+      "rules": [
+        {
+          "id": "dividend-yield",
+          "field": "dividendYield",
+          "operator": "gt",
+          "value": 0,
+          "scoreFormula": "Math.min(12, value * 300)",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "Dividend yield score - 3% yield = 9 points"
+        },
+        {
+          "id": "payout-ratio",
+          "field": "payoutRatio",
+          "operator": "between",
+          "value": [0.2, 0.6],
+          "scoreFormula": "Math.max(0, 12 - Math.abs(value - 0.40) * 20)",
+          "maxScore": 12,
+          "minScore": 0,
+          "description": "Payout ratio score - 40% is ideal, penalty for deviation"
+        }
+      ]
+    },
+    {
+      "id": "moat",
+      "name": "Competitive Moat",
+      "weight": 0.10,
+      "maxScore": 10,
+      "aggregation": "max",
+      "rules": [
+        {
+          "id": "moat-score",
+          "field": "moatScore",
+          "operator": "gte",
+          "value": 0,
+          "scoreFormula": "Math.min(10, Math.max(0, value))",
+          "maxScore": 10,
+          "minScore": 0,
+          "description": "AI-generated moat score (0-10)"
+        }
+      ]
+    }
+  ],
+  "classifications": [
+    {
+      "name": "Strong Buy",
+      "minScore": 80,
+      "maxScore": 100,
+      "recommendation": "Excellent value investment candidate with strong fundamentals"
+    },
+    {
+      "name": "Buy",
+      "minScore": 65,
+      "maxScore": 79.99,
+      "recommendation": "Good value investment with solid metrics"
+    },
+    {
+      "name": "Hold",
+      "minScore": 50,
+      "maxScore": 64.99,
+      "recommendation": "Moderate value - monitor for improvement"
+    },
+    {
+      "name": "Watch",
+      "minScore": 35,
+      "maxScore": 49.99,
+      "recommendation": "Below average value metrics - wait for better entry"
+    },
+    {
+      "name": "Avoid",
+      "minScore": 0,
+      "maxScore": 34.99,
+      "recommendation": "Poor value metrics - not recommended"
+    }
+  ]
+}

@@ -1,0 +1,350 @@
+import { Router, Request, Response } from 'express';
+import { Validator, ValidationOptions, ValidationResult, CheckResult } from '../engines/validator';
+import { getDatabase } from '../lib/database';
+import { companyRepository } from '../repositories/company-repository';
+import { analysisRepository } from '../repositories/analysis-repository';
+import { validationResultRepository } from '../repositories/validation-result-repository';
+import { auditRepository } from '../repositories/audit-repository';
+import {
+  ValidationStatus,
+  CreateValidationResultInput,
+  CheckStatus,
+} from '../types/database';
+
+const router = Router();
+const validator = new Validator();
+
+/**
+ * Map validation check result to database check status
+ */
+function mapCheckStatus(check: CheckResult): CheckStatus {
+  if (check.passed && check.score >= 0.8) {
+    return CheckStatus.PASS;
+  } else if (check.passed || check.score >= 0.5) {
+    return CheckStatus.FLAG;
+  } else {
+    return CheckStatus.FAIL;
+  }
+}
+
+/**
+ * Map validation status string to database enum
+ */
+function mapValidationStatus(status: string): ValidationStatus {
+  switch (status) {
+    case 'PASS':
+      return ValidationStatus.PASSED;
+    case 'FLAG':
+      return ValidationStatus.FLAGGED;
+    case 'FAIL':
+      return ValidationStatus.FAILED;
+    default:
+      return ValidationStatus.PENDING;
+  }
+}
+
+/**
+ * Build validation result inputs from check results
+ */
+function buildValidationResultInputs(
+  analysisId: string,
+  checks: CheckResult[]
+): CreateValidationResultInput[] {
+  return checks.map(check => ({
+    analysisId,
+    checkName: check.checkType.toUpperCase(),
+    status: mapCheckStatus(check),
+    details: {
+      score: check.score,
+      passed: check.passed,
+      issues: check.issues,
+      duration_ms: check.duration_ms,
+      ...check.details,
+    },
+  }));
+}
+
+/**
+ * POST /api/v1/validate
+ * Validate analysis data
+ */
+router.post('/', async (req: Request, res: Response) => {
+  const db = getDatabase();
+
+  try {
+    const { analysis, sources, scores, profile, options = {}, analysisId, ticker } = req.body as {
+      analysis: Record<string, unknown>;
+      sources?: unknown[];
+      scores?: Record<string, unknown>;
+      profile?: string;
+      options?: Omit<ValidationOptions, 'profile'>;
+      analysisId?: string;
+      ticker?: string;
+    };
+
+    if (!analysis || typeof analysis !== 'object') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Request body must include an "analysis" object',
+        traceId: req.traceContext.traceId,
+      });
+    }
+
+    // Merge sources and scores into analysis if provided separately
+    const analysisData = {
+      ...analysis,
+      ...(sources && { source_documents: sources }),
+      ...(scores && { scores }),
+    };
+
+    req.logger.info('Validation request received', {
+      operation: 'validate',
+      profile: profile || 'general',
+      dataKeys: Object.keys(analysis).length,
+      hasSources: !!sources,
+      hasScores: !!scores,
+      analysisId: analysisId || 'none',
+      ticker: ticker || 'none',
+    });
+
+    const result = await req.logger.time('validate', async () => {
+      return validator.validate(analysisData, {
+        profile: profile || 'general',
+        ...options,
+      });
+    });
+
+    // Determine if we should persist
+    let persistedAnalysisId: string | null = null;
+    let persisted = false;
+
+    // Try to find analysis to update
+    let targetAnalysisId: string | null = null;
+
+    if (analysisId) {
+      targetAnalysisId = analysisId;
+    } else if (ticker) {
+      const company = await companyRepository.findByTicker(ticker);
+      if (company) {
+        const currentAnalysis = await analysisRepository.findCurrentByCompanyId(company.id);
+        if (currentAnalysis) {
+          targetAnalysisId = currentAnalysis.id;
+        }
+      }
+    }
+
+    if (targetAnalysisId) {
+      try {
+        await db.transaction(async (client) => {
+          // Insert validation results
+          const validationInputs = buildValidationResultInputs(targetAnalysisId!, result.checks);
+          await validationResultRepository.createMany(validationInputs, client);
+
+          // Update analysis validation status
+          const validationStatus = mapValidationStatus(result.status);
+          await analysisRepository.updateValidation(targetAnalysisId!, validationStatus, client);
+
+          // Audit log
+          await auditRepository.logValidate(
+            targetAnalysisId!,
+            result.status,
+            result.checks.length,
+            req,
+            client
+          );
+
+          persistedAnalysisId = targetAnalysisId;
+          persisted = true;
+
+          req.logger.info('Validation persisted', {
+            analysisId: targetAnalysisId,
+            status: result.status,
+            checksCount: result.checks.length,
+          });
+        });
+      } catch (persistError) {
+        req.logger.error('Failed to persist validation', {
+          error: (persistError as Error).message,
+        });
+        // Don't fail the request, just mark as not persisted
+      }
+    }
+
+    res.json({
+      success: true,
+      result: {
+        analysis_id: persistedAnalysisId,
+        persisted,
+        ...result,
+      },
+      traceId: req.traceContext.traceId,
+    });
+  } catch (error) {
+    req.logger.error('Validation failed', {
+      error: (error as Error).message,
+      stack: (error as Error).stack,
+    });
+
+    const statusCode = (error as Error).message.includes('not found') ? 404 : 500;
+
+    res.status(statusCode).json({
+      error: statusCode === 404 ? 'Not Found' : 'Internal Server Error',
+      message: (error as Error).message,
+      traceId: req.traceContext.traceId,
+    });
+  }
+});
+
+/**
+ * GET /api/v1/validate/profiles
+ * Get available validation profiles
+ */
+router.get('/profiles', (req: Request, res: Response) => {
+  try {
+    const profiles = validator.getProfiles();
+
+    res.json({
+      success: true,
+      result: {
+        profiles,
+        count: profiles.length,
+      },
+      traceId: req.traceContext.traceId,
+    });
+  } catch (error) {
+    req.logger.error('Failed to get validation profiles', {
+      error: (error as Error).message,
+    });
+
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: (error as Error).message,
+      traceId: req.traceContext.traceId,
+    });
+  }
+});
+
+/**
+ * POST /api/v1/validate/quick
+ * Quick validation with default profile
+ */
+router.post('/quick', async (req: Request, res: Response) => {
+  try {
+    const { data } = req.body as { data: Record<string, unknown> };
+
+    if (!data || typeof data !== 'object') {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Request body must include a "data" object',
+        traceId: req.traceContext.traceId,
+      });
+    }
+
+    const result = validator.validate(data, {
+      profile: 'general',
+      checks: ['schema', 'coverage'],
+      strictness: 'lenient',
+    });
+
+    res.json({
+      success: true,
+      result: {
+        status: result.status,
+        confidence: result.confidence,
+        issueCount: result.issues.length,
+        summary: result.summary,
+      },
+      traceId: req.traceContext.traceId,
+    });
+  } catch (error) {
+    req.logger.error('Quick validation failed', {
+      error: (error as Error).message,
+    });
+
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: (error as Error).message,
+      traceId: req.traceContext.traceId,
+    });
+  }
+});
+
+/**
+ * POST /api/v1/validate/batch
+ * Validate multiple items
+ */
+router.post('/batch', async (req: Request, res: Response) => {
+  try {
+    const { items, profile, options = {} } = req.body as {
+      items: Record<string, unknown>[];
+      profile?: string;
+      options?: ValidationOptions;
+    };
+
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Request body must include an "items" array',
+        traceId: req.traceContext.traceId,
+      });
+    }
+
+    req.logger.info('Batch validation request received', {
+      operation: 'batchValidate',
+      profile: profile || 'general',
+      itemCount: items.length,
+    });
+
+    const results = await req.logger.time('batchValidate', async () => {
+      return items.map((item, index) => {
+        try {
+          return {
+            index,
+            success: true,
+            result: validator.validate(item, {
+              profile: profile || 'general',
+              ...options,
+            }),
+          };
+        } catch (error) {
+          return {
+            index,
+            success: false,
+            error: (error as Error).message,
+          };
+        }
+      });
+    });
+
+    const successCount = results.filter(r => r.success).length;
+    const passCount = results.filter(r => r.success && (r.result as { status: string })?.status === 'PASS').length;
+
+    res.json({
+      success: true,
+      result: {
+        items: results,
+        summary: {
+          total: items.length,
+          successful: successCount,
+          failed: items.length - successCount,
+          passed: passCount,
+          flagged: results.filter(r => r.success && (r.result as { status: string })?.status === 'FLAG').length,
+          rejected: results.filter(r => r.success && (r.result as { status: string })?.status === 'FAIL').length,
+        },
+      },
+      traceId: req.traceContext.traceId,
+    });
+  } catch (error) {
+    req.logger.error('Batch validation failed', {
+      error: (error as Error).message,
+    });
+
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: (error as Error).message,
+      traceId: req.traceContext.traceId,
+    });
+  }
+});
+
+export default router;
