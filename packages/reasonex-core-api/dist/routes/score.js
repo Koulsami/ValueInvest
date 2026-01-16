@@ -13,22 +13,27 @@ const ruleEngine = new rule_engine_1.RuleEngine();
 /**
  * Convert scoring result to rule execution inputs
  */
-function buildRuleExecutionInputs(analysisId, result) {
+function buildRuleExecutionInputs(analysisId, result, ruleSetId) {
     const executions = [];
     for (const dimension of result.scores.dimensions) {
         for (const rule of dimension.ruleExecutions) {
             executions.push({
                 analysisId,
+                ruleSetId,
+                ruleSetVersion: '1.0', // TODO: Get from rule set metadata
+                dimension: dimension.dimensionId,
                 ruleId: rule.ruleId,
-                ruleName: rule.ruleId, // Using ruleId as name since we don't have separate name
-                category: dimension.dimensionId,
+                fieldName: rule.ruleId, // Using ruleId as field name
                 inputValue: rule.inputValue !== null && rule.inputValue !== undefined
-                    ? typeof rule.inputValue === 'number' ? rule.inputValue : String(rule.inputValue)
+                    ? typeof rule.inputValue === 'number' ? rule.inputValue : null
                     : null,
-                thresholdUsed: JSON.stringify(rule.targetValue),
-                resultClassification: rule.passed ? 'PASS' : 'FAIL',
-                scoreAwarded: rule.rawScore,
-                executionTimeMs: 0, // We don't track individual rule timing
+                outputScore: rule.rawScore,
+                maxScore: rule.maxScore,
+                weight: rule.weight,
+                passed: rule.passed,
+                explanation: rule.targetValue !== undefined
+                    ? `Target: ${JSON.stringify(rule.targetValue)}`
+                    : null,
             });
         }
     }
@@ -166,7 +171,7 @@ router.post('/', async (req, res) => {
                     const scoresInput = buildScoresInput(result);
                     await analysis_repository_1.analysisRepository.updateScores(analysis.id, scoresInput, client);
                     // Insert rule executions
-                    const ruleExecutionInputs = buildRuleExecutionInputs(analysis.id, result);
+                    const ruleExecutionInputs = buildRuleExecutionInputs(analysis.id, result, ruleSetId);
                     await rule_execution_repository_1.ruleExecutionRepository.createMany(ruleExecutionInputs, client);
                     // Update company last_analysis_at
                     if (resolvedCompanyId) {

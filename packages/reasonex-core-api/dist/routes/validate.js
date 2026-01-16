@@ -30,13 +30,13 @@ function mapCheckStatus(check) {
 function mapValidationStatus(status) {
     switch (status) {
         case 'PASS':
-            return database_2.ValidationStatus.PASSED;
+            return database_2.ValidationStatus.PASS;
         case 'FLAG':
-            return database_2.ValidationStatus.FLAGGED;
+            return database_2.ValidationStatus.FLAG;
         case 'FAIL':
-            return database_2.ValidationStatus.FAILED;
+            return database_2.ValidationStatus.FAIL;
         default:
-            return database_2.ValidationStatus.PENDING;
+            return database_2.ValidationStatus.PASS; // Default to PASS if unknown
     }
 }
 /**

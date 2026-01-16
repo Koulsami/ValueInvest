@@ -11,12 +11,18 @@ const uuid_1 = require("uuid");
 function rowToAuditLogEntry(row) {
     return {
         id: row.id,
-        tableName: row.table_name,
-        recordId: row.record_id,
+        eventType: row.event_type,
+        eventCategory: row.event_category,
+        entityType: row.entity_type,
+        entityId: row.entity_id,
+        actorType: row.actor_type,
+        actorId: row.actor_id,
         action: row.action,
-        oldValues: row.old_values,
-        newValues: row.new_values,
-        userId: row.user_id,
+        oldValue: row.old_value,
+        newValue: row.new_value,
+        metadata: row.metadata || {},
+        correlationId: row.correlation_id,
+        traceId: row.trace_id,
         ipAddress: row.ip_address,
         userAgent: row.user_agent,
         createdAt: new Date(row.created_at),
@@ -49,32 +55,47 @@ function extractUserAgent(req) {
     const userAgent = req.headers['user-agent'];
     return userAgent || null;
 }
+/**
+ * Extract trace ID from request
+ */
+function extractTraceId(req) {
+    if (!req)
+        return null;
+    return req.traceContext?.traceId || null;
+}
 class AuditRepository {
     db = (0, database_1.getDatabase)();
     /**
      * Log an audit entry
      */
-    async log(tableName, recordId, action, oldValues, newValues, req, client) {
+    async log(eventType, eventCategory, entityType, entityId, action, oldValue, newValue, metadata = {}, req, client) {
         const id = (0, uuid_1.v4)();
         const ipAddress = extractIpAddress(req);
         const userAgent = extractUserAgent(req);
+        const traceId = extractTraceId(req);
         const sql = `
       INSERT INTO audit_log (
-        id, table_name, record_id, action, old_values, new_values,
-        user_id, ip_address, user_agent
+        id, event_type, event_category, entity_type, entity_id,
+        actor_type, actor_id, action, old_value, new_value,
+        metadata, trace_id, ip_address, user_agent
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
       )
       RETURNING *
     `;
         const values = [
             id,
-            tableName,
-            recordId,
+            eventType,
+            eventCategory,
+            entityType,
+            entityId,
+            'API', // actorType - default to API
+            null, // actorId - not implemented yet
             action,
-            oldValues ? JSON.stringify(oldValues) : null,
-            newValues ? JSON.stringify(newValues) : null,
-            null, // userId - not implemented yet
+            oldValue ? JSON.stringify(oldValue) : null,
+            newValue ? JSON.stringify(newValue) : null,
+            JSON.stringify(metadata),
+            traceId,
             ipAddress,
             userAgent,
         ];
@@ -88,73 +109,64 @@ class AuditRepository {
      * Log a score operation
      */
     async logScore(analysisId, scores, ruleExecutionCount, req, client) {
-        return this.log('analyses', analysisId, 'SCORE', null, {
+        return this.log('SCORE_ANALYSIS', 'ANALYSIS', 'analysis', analysisId, 'SCORE', null, {
             ...scores,
             rule_executions_count: ruleExecutionCount,
-            operation: 'score',
-        }, req, client);
+        }, { operation: 'score' }, req, client);
     }
     /**
      * Log a lock operation
      */
     async logLock(analysisId, dataHash, lockId, req, client) {
-        return this.log('analyses', analysisId, 'LOCK', null, {
+        return this.log('LOCK_ANALYSIS', 'ANALYSIS', 'analysis', analysisId, 'LOCK', null, {
             data_hash: dataHash,
             lock_id: lockId,
-            operation: 'lock',
-        }, req, client);
+        }, { operation: 'lock' }, req, client);
     }
     /**
      * Log a validate operation
      */
     async logValidate(analysisId, status, checkCount, req, client) {
-        return this.log('analyses', analysisId, 'VALIDATE', null, {
+        return this.log('VALIDATE_ANALYSIS', 'VALIDATION', 'analysis', analysisId, 'VALIDATE', null, {
             validation_status: status,
             checks_count: checkCount,
-            operation: 'validate',
-        }, req, client);
+        }, { operation: 'validate' }, req, client);
     }
     /**
      * Log a tree building operation
      */
     async logTree(analysisId, entity, req, client) {
-        const recordId = analysisId || 'ad-hoc';
-        return this.log('analyses', recordId, 'TREE', null, {
-            entity,
-            operation: 'tree_build',
-        }, req, client);
+        return this.log('BUILD_TREE', 'ANALYSIS', analysisId ? 'analysis' : null, analysisId, 'TREE', null, { entity }, { operation: 'tree_build' }, req, client);
     }
     /**
      * Log a change detection operation
      */
     async logDetect(changesCount, oldVersion, newVersion, req, client) {
-        return this.log('analyses', 'detect-operation', 'DETECT', null, {
+        return this.log('DETECT_CHANGES', 'ANALYSIS', null, null, 'DETECT', null, {
             changes_count: changesCount,
             old_version: oldVersion,
             new_version: newVersion,
-            operation: 'detect_changes',
-        }, req, client);
+        }, { operation: 'detect_changes' }, req, client);
     }
     /**
      * Log a routing operation
      */
     async logRoute(tier, reviewers, req, client) {
-        return this.log('analyses', 'route-operation', 'ROUTE', null, {
+        return this.log('ROUTE_DECISION', 'REVIEW', null, null, 'ROUTE', null, {
             tier,
             reviewers,
-            operation: 'route_decision',
-        }, req, client);
+        }, { operation: 'route_decision' }, req, client);
     }
     /**
-     * Find audit entries for a record
+     * Find audit entries for an entity
      */
-    async findByRecordId(tableName, recordId) {
+    async findByEntityId(entityType, entityId) {
         const sql = `
       SELECT * FROM audit_log
-      WHERE table_name = $1 AND record_id = $2
+      WHERE entity_type = $1 AND entity_id = $2
       ORDER BY created_at DESC
     `;
-        const result = await this.db.query(sql, [tableName, recordId]);
+        const result = await this.db.query(sql, [entityType, entityId]);
         return result.rows.map(rowToAuditLogEntry);
     }
     /**

@@ -59,6 +59,8 @@ export interface RuleExecution {
   targetValue: unknown;
   passed: boolean;
   rawScore: number;
+  maxScore: number;
+  weight: number;
   normalizedScore: number;
   explanation: string;
 }
@@ -508,10 +510,10 @@ export class RuleEngine {
           rawScore: Math.round(valuationScore * 100) / 100,
           weightedScore: Math.round(valuationScore * 100) / 100,
           ruleExecutions: [
-            { ruleId: 'pe-ratio', field: 'peRatio', inputValue: pe, operator: 'lt', targetValue: 25, passed: pe < 25, rawScore: peScore, normalizedScore: peScore / 12, explanation: `P/E=${pe} → score=${peScore.toFixed(2)}/12` },
-            { ruleId: 'pb-ratio', field: 'pbRatio', inputValue: pb, operator: 'lt', targetValue: 5, passed: pb < 5, rawScore: pbScore, normalizedScore: pbScore / 12, explanation: `P/B=${pb} → score=${pbScore.toFixed(2)}/12` },
-            { ruleId: 'ev-ebitda', field: 'evEbitda', inputValue: evEbitda, operator: 'lt', targetValue: 20, passed: evEbitda < 20, rawScore: evScore, normalizedScore: evScore / 12, explanation: `EV/EBITDA=${evEbitda} → score=${evScore.toFixed(2)}/12` },
-            { ruleId: 'p-fcf', field: 'pFcf', inputValue: pFcf, operator: 'lt', targetValue: 25, passed: pFcf < 25, rawScore: pfcfScore, normalizedScore: pfcfScore / 12, explanation: `P/FCF=${pFcf} → score=${pfcfScore.toFixed(2)}/12` },
+            { ruleId: 'pe-ratio', field: 'peRatio', inputValue: pe, operator: 'lt', targetValue: 25, passed: pe < 25, rawScore: peScore, maxScore: 12, weight: 1, normalizedScore: peScore / 12, explanation: `P/E=${pe} → score=${peScore.toFixed(2)}/12` },
+            { ruleId: 'pb-ratio', field: 'pbRatio', inputValue: pb, operator: 'lt', targetValue: 5, passed: pb < 5, rawScore: pbScore, maxScore: 12, weight: 1, normalizedScore: pbScore / 12, explanation: `P/B=${pb} → score=${pbScore.toFixed(2)}/12` },
+            { ruleId: 'ev-ebitda', field: 'evEbitda', inputValue: evEbitda, operator: 'lt', targetValue: 20, passed: evEbitda < 20, rawScore: evScore, maxScore: 12, weight: 1, normalizedScore: evScore / 12, explanation: `EV/EBITDA=${evEbitda} → score=${evScore.toFixed(2)}/12` },
+            { ruleId: 'p-fcf', field: 'pFcf', inputValue: pFcf, operator: 'lt', targetValue: 25, passed: pFcf < 25, rawScore: pfcfScore, maxScore: 12, weight: 1, normalizedScore: pfcfScore / 12, explanation: `P/FCF=${pFcf} → score=${pfcfScore.toFixed(2)}/12` },
           ],
           explanation: `Valuation: ${valuationScore.toFixed(1)}/30 (PE:${peScore.toFixed(1)}, PB:${pbScore.toFixed(1)}, EV:${evScore.toFixed(1)}, FCF:${pfcfScore.toFixed(1)})`,
         },
@@ -523,11 +525,11 @@ export class RuleEngine {
           rawScore: Math.round(qualityScore * 100) / 100,
           weightedScore: Math.round(qualityScore * 100) / 100,
           ruleExecutions: [
-            { ruleId: 'roe', field: 'roe', inputValue: roe, operator: 'gt', targetValue: 0, passed: roe > 0, rawScore: roeScore, normalizedScore: roeScore / 12, explanation: `ROE=${(roe * 100).toFixed(1)}% → score=${roeScore.toFixed(2)}/12` },
-            { ruleId: 'roic', field: 'roic', inputValue: roic, operator: 'gt', targetValue: 0, passed: roic > 0, rawScore: roicScore, normalizedScore: roicScore / 12, explanation: `ROIC=${(roic * 100).toFixed(1)}% → score=${roicScore.toFixed(2)}/12` },
-            { ruleId: 'net-margin', field: 'netMargin', inputValue: netMargin, operator: 'gt', targetValue: 0, passed: netMargin > 0, rawScore: marginScore, normalizedScore: marginScore / 12, explanation: `Margin=${(netMargin * 100).toFixed(1)}% → score=${marginScore.toFixed(2)}/12` },
-            { ruleId: 'debt-equity', field: 'debtEquity', inputValue: debtEquity, operator: 'lt', targetValue: 2, passed: debtEquity < 2, rawScore: debtScore, normalizedScore: debtScore / 12, explanation: `D/E=${debtEquity.toFixed(2)} → score=${debtScore.toFixed(2)}/12` },
-            { ruleId: 'interest-coverage', field: 'interestCoverage', inputValue: interestCoverage, operator: 'gt', targetValue: 2, passed: interestCoverage > 2, rawScore: coverageScore, normalizedScore: coverageScore / 12, explanation: `Coverage=${interestCoverage.toFixed(1)}x → score=${coverageScore.toFixed(2)}/12` },
+            { ruleId: 'roe', field: 'roe', inputValue: roe, operator: 'gt', targetValue: 0, passed: roe > 0, rawScore: roeScore, maxScore: 12, weight: 1, normalizedScore: roeScore / 12, explanation: `ROE=${(roe * 100).toFixed(1)}% → score=${roeScore.toFixed(2)}/12` },
+            { ruleId: 'roic', field: 'roic', inputValue: roic, operator: 'gt', targetValue: 0, passed: roic > 0, rawScore: roicScore, maxScore: 12, weight: 1, normalizedScore: roicScore / 12, explanation: `ROIC=${(roic * 100).toFixed(1)}% → score=${roicScore.toFixed(2)}/12` },
+            { ruleId: 'net-margin', field: 'netMargin', inputValue: netMargin, operator: 'gt', targetValue: 0, passed: netMargin > 0, rawScore: marginScore, maxScore: 12, weight: 1, normalizedScore: marginScore / 12, explanation: `Margin=${(netMargin * 100).toFixed(1)}% → score=${marginScore.toFixed(2)}/12` },
+            { ruleId: 'debt-equity', field: 'debtEquity', inputValue: debtEquity, operator: 'lt', targetValue: 2, passed: debtEquity < 2, rawScore: debtScore, maxScore: 12, weight: 1, normalizedScore: debtScore / 12, explanation: `D/E=${debtEquity.toFixed(2)} → score=${debtScore.toFixed(2)}/12` },
+            { ruleId: 'interest-coverage', field: 'interestCoverage', inputValue: interestCoverage, operator: 'gt', targetValue: 2, passed: interestCoverage > 2, rawScore: coverageScore, maxScore: 12, weight: 1, normalizedScore: coverageScore / 12, explanation: `Coverage=${interestCoverage.toFixed(1)}x → score=${coverageScore.toFixed(2)}/12` },
           ],
           explanation: `Quality: ${qualityScore.toFixed(1)}/25 (ROE:${roeScore.toFixed(1)}, ROIC:${roicScore.toFixed(1)}, Margin:${marginScore.toFixed(1)}, Debt:${debtScore.toFixed(1)}, Coverage:${coverageScore.toFixed(1)})`,
         },
@@ -539,9 +541,9 @@ export class RuleEngine {
           rawScore: Math.round(growthScore * 100) / 100,
           weightedScore: Math.round(growthScore * 100) / 100,
           ruleExecutions: [
-            { ruleId: 'revenue-growth', field: 'revenueGrowth', inputValue: revGrowth, operator: 'gt', targetValue: 0, passed: revGrowth > 0, rawScore: revGrowthScore, normalizedScore: revGrowthScore / 12, explanation: `RevGrowth=${(revGrowth * 100).toFixed(1)}% → score=${revGrowthScore.toFixed(2)}/12` },
-            { ruleId: 'eps-growth', field: 'epsGrowth', inputValue: epsGrowth, operator: 'gt', targetValue: 0, passed: epsGrowth > 0, rawScore: epsGrowthScore, normalizedScore: epsGrowthScore / 12, explanation: `EPSGrowth=${(epsGrowth * 100).toFixed(1)}% → score=${epsGrowthScore.toFixed(2)}/12` },
-            { ruleId: 'fcf-growth', field: 'fcfGrowth', inputValue: fcfGrowth, operator: 'gt', targetValue: 0, passed: fcfGrowth > 0, rawScore: fcfGrowthScore, normalizedScore: fcfGrowthScore / 12, explanation: `FCFGrowth=${(fcfGrowth * 100).toFixed(1)}% → score=${fcfGrowthScore.toFixed(2)}/12` },
+            { ruleId: 'revenue-growth', field: 'revenueGrowth', inputValue: revGrowth, operator: 'gt', targetValue: 0, passed: revGrowth > 0, rawScore: revGrowthScore, maxScore: 12, weight: 1, normalizedScore: revGrowthScore / 12, explanation: `RevGrowth=${(revGrowth * 100).toFixed(1)}% → score=${revGrowthScore.toFixed(2)}/12` },
+            { ruleId: 'eps-growth', field: 'epsGrowth', inputValue: epsGrowth, operator: 'gt', targetValue: 0, passed: epsGrowth > 0, rawScore: epsGrowthScore, maxScore: 12, weight: 1, normalizedScore: epsGrowthScore / 12, explanation: `EPSGrowth=${(epsGrowth * 100).toFixed(1)}% → score=${epsGrowthScore.toFixed(2)}/12` },
+            { ruleId: 'fcf-growth', field: 'fcfGrowth', inputValue: fcfGrowth, operator: 'gt', targetValue: 0, passed: fcfGrowth > 0, rawScore: fcfGrowthScore, maxScore: 12, weight: 1, normalizedScore: fcfGrowthScore / 12, explanation: `FCFGrowth=${(fcfGrowth * 100).toFixed(1)}% → score=${fcfGrowthScore.toFixed(2)}/12` },
           ],
           explanation: `Growth: ${growthScore.toFixed(1)}/20 (Rev:${revGrowthScore.toFixed(1)}, EPS:${epsGrowthScore.toFixed(1)}, FCF:${fcfGrowthScore.toFixed(1)})`,
         },
@@ -553,8 +555,8 @@ export class RuleEngine {
           rawScore: Math.round(dividendScore * 100) / 100,
           weightedScore: Math.round(dividendScore * 100) / 100,
           ruleExecutions: [
-            { ruleId: 'dividend-yield', field: 'dividendYield', inputValue: divYield, operator: 'gt', targetValue: 0, passed: divYield > 0, rawScore: yieldScore, normalizedScore: yieldScore / 12, explanation: `Yield=${(divYield * 100).toFixed(2)}% → score=${yieldScore.toFixed(2)}/12` },
-            { ruleId: 'payout-ratio', field: 'payoutRatio', inputValue: payoutRatio, operator: 'between', targetValue: [0.2, 0.6], passed: payoutRatio >= 0.2 && payoutRatio <= 0.6, rawScore: payoutScore, normalizedScore: payoutScore / 12, explanation: `Payout=${(payoutRatio * 100).toFixed(1)}% → score=${payoutScore.toFixed(2)}/12` },
+            { ruleId: 'dividend-yield', field: 'dividendYield', inputValue: divYield, operator: 'gt', targetValue: 0, passed: divYield > 0, rawScore: yieldScore, maxScore: 12, weight: 1, normalizedScore: yieldScore / 12, explanation: `Yield=${(divYield * 100).toFixed(2)}% → score=${yieldScore.toFixed(2)}/12` },
+            { ruleId: 'payout-ratio', field: 'payoutRatio', inputValue: payoutRatio, operator: 'between', targetValue: [0.2, 0.6], passed: payoutRatio >= 0.2 && payoutRatio <= 0.6, rawScore: payoutScore, maxScore: 12, weight: 1, normalizedScore: payoutScore / 12, explanation: `Payout=${(payoutRatio * 100).toFixed(1)}% → score=${payoutScore.toFixed(2)}/12` },
           ],
           explanation: `Dividend: ${dividendScore.toFixed(1)}/15 (Yield:${yieldScore.toFixed(1)}, Payout:${payoutScore.toFixed(1)})`,
         },
@@ -566,7 +568,7 @@ export class RuleEngine {
           rawScore: Math.round(moatFinalScore * 100) / 100,
           weightedScore: Math.round(moatFinalScore * 100) / 100,
           ruleExecutions: [
-            { ruleId: 'moat-score', field: 'moatScore', inputValue: moatScore, operator: 'gte', targetValue: 0, passed: true, rawScore: moatFinalScore, normalizedScore: moatFinalScore / 10, explanation: `Moat=${moatFinalScore.toFixed(1)}/10` },
+            { ruleId: 'moat-score', field: 'moatScore', inputValue: moatScore, operator: 'gte', targetValue: 0, passed: true, rawScore: moatFinalScore, maxScore: 10, weight: 1, normalizedScore: moatFinalScore / 10, explanation: `Moat=${moatFinalScore.toFixed(1)}/10` },
           ],
           explanation: `Moat: ${moatFinalScore.toFixed(1)}/10 (AI-determined competitive advantage)`,
         },
@@ -853,6 +855,8 @@ export class RuleEngine {
         targetValue: rule.value,
         passed: false,
         rawScore: 0,
+        maxScore: rule.maxScore,
+        weight: 1,
         normalizedScore: 0,
         explanation: `Missing or invalid value for field '${rule.field}'`,
       };
@@ -870,6 +874,8 @@ export class RuleEngine {
       targetValue: rule.value,
       passed,
       rawScore,
+      maxScore: rule.maxScore,
+      weight: 1,
       normalizedScore,
       explanation: `${rule.field}=${inputValue} ${rule.operator} ${JSON.stringify(rule.value)} -> score: ${rawScore.toFixed(2)}/${rule.maxScore}`,
     };

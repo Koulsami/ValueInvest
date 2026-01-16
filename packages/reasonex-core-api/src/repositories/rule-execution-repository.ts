@@ -13,15 +13,18 @@ function rowToRuleExecution(row: Record<string, unknown>): RuleExecution {
   return {
     id: row.id as string,
     analysisId: row.analysis_id as string,
+    ruleSetId: row.rule_set_id as string,
+    ruleSetVersion: row.rule_set_version as string,
+    dimension: row.dimension as string,
     ruleId: row.rule_id as string,
-    ruleName: row.rule_name as string,
-    category: row.category as string,
-    inputValue: row.input_value as number | string | null,
-    thresholdUsed: row.threshold_used as string | null,
-    resultClassification: row.result_classification as string,
-    scoreAwarded: Number(row.score_awarded),
-    executionTimeMs: Number(row.execution_time_ms),
-    createdAt: new Date(row.created_at as string),
+    fieldName: row.field_name as string,
+    inputValue: row.input_value !== null ? Number(row.input_value) : null,
+    outputScore: Number(row.output_score),
+    maxScore: Number(row.max_score),
+    weight: Number(row.weight),
+    passed: row.passed as boolean,
+    explanation: row.explanation as string | null,
+    executedAt: new Date(row.executed_at as string),
   };
 }
 
@@ -46,26 +49,29 @@ export class RuleExecutionRepository {
 
     for (const exec of executions) {
       const id = uuidv4();
-      valuePlaceholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
+      valuePlaceholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
       values.push(
         id,
         exec.analysisId,
+        exec.ruleSetId,
+        exec.ruleSetVersion,
+        exec.dimension,
         exec.ruleId,
-        exec.ruleName,
-        exec.category,
+        exec.fieldName,
         exec.inputValue,
-        exec.thresholdUsed,
-        exec.resultClassification,
-        exec.scoreAwarded,
-        exec.executionTimeMs
+        exec.outputScore,
+        exec.maxScore,
+        exec.weight,
+        exec.passed,
+        exec.explanation
       );
     }
 
     const sql = `
       INSERT INTO rule_executions (
-        id, analysis_id, rule_id, rule_name, category,
-        input_value, threshold_used, result_classification,
-        score_awarded, execution_time_ms
+        id, analysis_id, rule_set_id, rule_set_version, dimension,
+        rule_id, field_name, input_value, output_score, max_score,
+        weight, passed, explanation
       ) VALUES ${valuePlaceholders.join(', ')}
       RETURNING *
     `;
@@ -85,7 +91,7 @@ export class RuleExecutionRepository {
     const sql = `
       SELECT * FROM rule_executions
       WHERE analysis_id = $1
-      ORDER BY category, rule_id
+      ORDER BY dimension, rule_id
     `;
 
     const result = await this.db.query(sql, [analysisId]);

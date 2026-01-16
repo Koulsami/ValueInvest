@@ -5,13 +5,13 @@
 import { PoolClient } from 'pg';
 import { Request } from 'express';
 import { AuditLogEntry } from '../types/database';
-export type AuditAction = 'INSERT' | 'UPDATE' | 'DELETE' | 'LOCK' | 'VALIDATE' | 'SCORE' | 'DETECT' | 'ROUTE' | 'TREE';
+export type EventCategory = 'API' | 'ANALYSIS' | 'VALIDATION' | 'REVIEW' | 'SYSTEM';
 export declare class AuditRepository {
     private db;
     /**
      * Log an audit entry
      */
-    log(tableName: string, recordId: string, action: AuditAction, oldValues: Record<string, unknown> | null, newValues: Record<string, unknown> | null, req?: Request, client?: PoolClient): Promise<AuditLogEntry>;
+    log(eventType: string, eventCategory: EventCategory, entityType: string | null, entityId: string | null, action: string, oldValue: Record<string, unknown> | null, newValue: Record<string, unknown> | null, metadata?: Record<string, unknown>, req?: Request, client?: PoolClient): Promise<AuditLogEntry>;
     /**
      * Log a score operation
      */
@@ -37,9 +37,9 @@ export declare class AuditRepository {
      */
     logRoute(tier: string, reviewers: string[] | null, req?: Request, client?: PoolClient): Promise<AuditLogEntry>;
     /**
-     * Find audit entries for a record
+     * Find audit entries for an entity
      */
-    findByRecordId(tableName: string, recordId: string): Promise<AuditLogEntry[]>;
+    findByEntityId(entityType: string, entityId: string): Promise<AuditLogEntry[]>;
     /**
      * Find recent audit entries
      */

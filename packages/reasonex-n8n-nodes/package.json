@@ -1,0 +1,58 @@
+{
+  "name": "@reasonex/n8n-nodes",
+  "version": "1.0.0",
+  "description": "Reasonex proprietary n8n nodes for scoring, validation, and analysis",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "reasonex",
+    "scoring",
+    "validation",
+    "value-investing"
+  ],
+  "license": "UNLICENSED",
+  "author": "Reasonex",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && npm run copy-icons",
+    "copy-icons": "copyfiles -u 1 \"nodes/**/*.svg\" dist/",
+    "dev": "tsc --watch",
+    "lint": "eslint nodes/**/*.ts credentials/**/*.ts lib/**/*.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/ReasonexApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/ReasonexLock/ReasonexLock.node.js",
+      "dist/nodes/ReasonexRuleEngine/ReasonexRuleEngine.node.js",
+      "dist/nodes/ReasonexValidation/ReasonexValidation.node.js",
+      "dist/nodes/ReasonexTreeBuilder/ReasonexTreeBuilder.node.js",
+      "dist/nodes/ReasonexChangeDetector/ReasonexChangeDetector.node.js",
+      "dist/nodes/ReasonexReviewRouter/ReasonexReviewRouter.node.js",
+      "dist/nodes/ReasonexExplanation/ReasonexExplanation.node.js"
+    ]
+  },
+  "dependencies": {
+    "axios": "^1.6.5",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "@types/uuid": "^9.0.7",
+    "copyfiles": "^2.4.1",
+    "n8n-workflow": "^1.22.0",
+    "typescript": "^5.3.3",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": ">=1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

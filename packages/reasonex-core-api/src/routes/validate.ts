@@ -33,13 +33,13 @@ function mapCheckStatus(check: CheckResult): CheckStatus {
 function mapValidationStatus(status: string): ValidationStatus {
   switch (status) {
     case 'PASS':
-      return ValidationStatus.PASSED;
+      return ValidationStatus.PASS;
     case 'FLAG':
-      return ValidationStatus.FLAGGED;
+      return ValidationStatus.FLAG;
     case 'FAIL':
-      return ValidationStatus.FAILED;
+      return ValidationStatus.FAIL;
     default:
-      return ValidationStatus.PENDING;
+      return ValidationStatus.PASS; // Default to PASS if unknown
   }
 }
 

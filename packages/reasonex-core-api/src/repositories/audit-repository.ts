@@ -9,19 +9,25 @@ import { getDatabase } from '../lib/database';
 import { AuditLogEntry } from '../types/database';
 import { v4 as uuidv4 } from 'uuid';
 
-// Audit action types
-export type AuditAction = 'INSERT' | 'UPDATE' | 'DELETE' | 'LOCK' | 'VALIDATE' | 'SCORE' | 'DETECT' | 'ROUTE' | 'TREE';
+// Event categories
+export type EventCategory = 'API' | 'ANALYSIS' | 'VALIDATION' | 'REVIEW' | 'SYSTEM';
 
 // Row to entity mapping helper
 function rowToAuditLogEntry(row: Record<string, unknown>): AuditLogEntry {
   return {
     id: row.id as string,
-    tableName: row.table_name as string,
-    recordId: row.record_id as string,
+    eventType: row.event_type as string,
+    eventCategory: row.event_category as string,
+    entityType: row.entity_type as string | null,
+    entityId: row.entity_id as string | null,
+    actorType: row.actor_type as string,
+    actorId: row.actor_id as string | null,
     action: row.action as string,
-    oldValues: row.old_values as Record<string, unknown> | null,
-    newValues: row.new_values as Record<string, unknown> | null,
-    userId: row.user_id as string | null,
+    oldValue: row.old_value as Record<string, unknown> | null,
+    newValue: row.new_value as Record<string, unknown> | null,
+    metadata: (row.metadata as Record<string, unknown>) || {},
+    correlationId: row.correlation_id as string | null,
+    traceId: row.trace_id as string | null,
     ipAddress: row.ip_address as string | null,
     userAgent: row.user_agent as string | null,
     createdAt: new Date(row.created_at as string),
@@ -58,6 +64,14 @@ function extractUserAgent(req?: Request): string | null {
   return userAgent || null;
 }
 
+/**
+ * Extract trace ID from request
+ */
+function extractTraceId(req?: Request): string | null {
+  if (!req) return null;
+  return req.traceContext?.traceId || null;
+}
+
 export class AuditRepository {
   private db = getDatabase();
 
@@ -65,36 +79,46 @@ export class AuditRepository {
    * Log an audit entry
    */
   async log(
-    tableName: string,
-    recordId: string,
-    action: AuditAction,
-    oldValues: Record<string, unknown> | null,
-    newValues: Record<string, unknown> | null,
+    eventType: string,
+    eventCategory: EventCategory,
+    entityType: string | null,
+    entityId: string | null,
+    action: string,
+    oldValue: Record<string, unknown> | null,
+    newValue: Record<string, unknown> | null,
+    metadata: Record<string, unknown> = {},
     req?: Request,
     client?: PoolClient
   ): Promise<AuditLogEntry> {
     const id = uuidv4();
     const ipAddress = extractIpAddress(req);
     const userAgent = extractUserAgent(req);
+    const traceId = extractTraceId(req);
 
     const sql = `
       INSERT INTO audit_log (
-        id, table_name, record_id, action, old_values, new_values,
-        user_id, ip_address, user_agent
+        id, event_type, event_category, entity_type, entity_id,
+        actor_type, actor_id, action, old_value, new_value,
+        metadata, trace_id, ip_address, user_agent
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
       )
       RETURNING *
     `;
 
     const values = [
       id,
-      tableName,
-      recordId,
+      eventType,
+      eventCategory,
+      entityType,
+      entityId,
+      'API', // actorType - default to API
+      null, // actorId - not implemented yet
       action,
-      oldValues ? JSON.stringify(oldValues) : null,
-      newValues ? JSON.stringify(newValues) : null,
-      null, // userId - not implemented yet
+      oldValue ? JSON.stringify(oldValue) : null,
+      newValue ? JSON.stringify(newValue) : null,
+      JSON.stringify(metadata),
+      traceId,
       ipAddress,
       userAgent,
     ];
@@ -118,15 +142,17 @@ export class AuditRepository {
     client?: PoolClient
   ): Promise<AuditLogEntry> {
     return this.log(
-      'analyses',
+      'SCORE_ANALYSIS',
+      'ANALYSIS',
+      'analysis',
       analysisId,
       'SCORE',
       null,
       {
         ...scores,
         rule_executions_count: ruleExecutionCount,
-        operation: 'score',
       },
+      { operation: 'score' },
       req,
       client
     );
@@ -143,15 +169,17 @@ export class AuditRepository {
     client?: PoolClient
   ): Promise<AuditLogEntry> {
     return this.log(
-      'analyses',
+      'LOCK_ANALYSIS',
+      'ANALYSIS',
+      'analysis',
       analysisId,
       'LOCK',
       null,
       {
         data_hash: dataHash,
         lock_id: lockId,
-        operation: 'lock',
       },
+      { operation: 'lock' },
       req,
       client
     );
@@ -168,15 +196,17 @@ export class AuditRepository {
     client?: PoolClient
   ): Promise<AuditLogEntry> {
     return this.log(
-      'analyses',
+      'VALIDATE_ANALYSIS',
+      'VALIDATION',
+      'analysis',
       analysisId,
       'VALIDATE',
       null,
       {
         validation_status: status,
         checks_count: checkCount,
-        operation: 'validate',
       },
+      { operation: 'validate' },
       req,
       client
     );
@@ -191,16 +221,15 @@ export class AuditRepository {
     req?: Request,
     client?: PoolClient
   ): Promise<AuditLogEntry> {
-    const recordId = analysisId || 'ad-hoc';
     return this.log(
-      'analyses',
-      recordId,
+      'BUILD_TREE',
+      'ANALYSIS',
+      analysisId ? 'analysis' : null,
+      analysisId,
       'TREE',
       null,
-      {
-        entity,
-        operation: 'tree_build',
-      },
+      { entity },
+      { operation: 'tree_build' },
       req,
       client
     );
@@ -217,16 +246,18 @@ export class AuditRepository {
     client?: PoolClient
   ): Promise<AuditLogEntry> {
     return this.log(
-      'analyses',
-      'detect-operation',
+      'DETECT_CHANGES',
+      'ANALYSIS',
+      null,
+      null,
       'DETECT',
       null,
       {
         changes_count: changesCount,
         old_version: oldVersion,
         new_version: newVersion,
-        operation: 'detect_changes',
       },
+      { operation: 'detect_changes' },
       req,
       client
     );
@@ -242,31 +273,33 @@ export class AuditRepository {
     client?: PoolClient
   ): Promise<AuditLogEntry> {
     return this.log(
-      'analyses',
-      'route-operation',
+      'ROUTE_DECISION',
+      'REVIEW',
+      null,
+      null,
       'ROUTE',
       null,
       {
         tier,
         reviewers,
-        operation: 'route_decision',
       },
+      { operation: 'route_decision' },
       req,
       client
     );
   }
 
   /**
-   * Find audit entries for a record
+   * Find audit entries for an entity
    */
-  async findByRecordId(tableName: string, recordId: string): Promise<AuditLogEntry[]> {
+  async findByEntityId(entityType: string, entityId: string): Promise<AuditLogEntry[]> {
     const sql = `
       SELECT * FROM audit_log
-      WHERE table_name = $1 AND record_id = $2
+      WHERE entity_type = $1 AND entity_id = $2
       ORDER BY created_at DESC
     `;
 
-    const result = await this.db.query(sql, [tableName, recordId]);
+    const result = await this.db.query(sql, [entityType, entityId]);
     return result.rows.map(rowToAuditLogEntry);
   }
 

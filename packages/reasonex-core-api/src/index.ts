@@ -22,6 +22,7 @@ import detectRouter from './routes/detect';
 import routeRouter from './routes/route';
 import analysesRouter from './routes/analyses';
 import companiesRouter from './routes/companies';
+import workbenchRouter from './routes/workbench';
 
 // Create app
 const app = express();
@@ -109,6 +110,16 @@ app.get('/', (req: Request, res: Response) => {
       companyAnalyses: 'GET /api/v1/companies/:ticker/analyses',
       ruleExecutions: 'GET /api/v1/analyses/:id/rule-executions',
       validations: 'GET /api/v1/analyses/:id/validations',
+      // Phase 3: Rule Development Workbench
+      workbenchSessions: 'POST/GET /api/v1/workbench/sessions',
+      workbenchDocuments: 'POST/GET /api/v1/workbench/sessions/:id/documents',
+      workbenchQueries: 'POST/GET /api/v1/workbench/sessions/:id/queries',
+      workbenchRules: 'POST/GET /api/v1/workbench/sessions/:id/rules',
+      workbenchGenerate: 'POST /api/v1/workbench/sessions/:id/rules/generate',
+      workbenchTestCases: 'POST/GET /api/v1/workbench/sessions/:id/test-cases',
+      workbenchValidate: 'POST /api/v1/workbench/sessions/:id/validate',
+      workbenchExport: 'POST /api/v1/workbench/sessions/:id/export',
+      workbenchDeploy: 'POST /api/v1/workbench/sessions/:id/deploy',
     },
     documentation: 'See API documentation for request/response formats',
   });
@@ -163,6 +174,7 @@ app.use(`${API_PREFIX}/detect`, detectRouter);
 app.use(`${API_PREFIX}/route`, routeRouter);
 app.use(`${API_PREFIX}/analyses`, analysesRouter);
 app.use(`${API_PREFIX}/companies`, companiesRouter);
+app.use(`${API_PREFIX}/workbench`, workbenchRouter);
 
 // Debug endpoint (development only)
 if (process.env.NODE_ENV !== 'production') {

@@ -12,10 +12,9 @@ export declare enum AnalysisStatus {
     REJECTED = "REJECTED"
 }
 export declare enum ValidationStatus {
-    PENDING = "PENDING",
-    PASSED = "PASSED",
-    FLAGGED = "FLAGGED",
-    FAILED = "FAILED"
+    PASS = "PASS",
+    FLAG = "FLAG",
+    FAIL = "FAIL"
 }
 export declare enum CheckStatus {
     PASS = "PASS",
@@ -68,15 +67,18 @@ export interface Analysis {
 export interface RuleExecution {
     id: string;
     analysisId: string;
+    ruleSetId: string;
+    ruleSetVersion: string;
+    dimension: string;
     ruleId: string;
-    ruleName: string;
-    category: string;
-    inputValue: number | string | null;
-    thresholdUsed: string | null;
-    resultClassification: string;
-    scoreAwarded: number;
-    executionTimeMs: number;
-    createdAt: Date;
+    fieldName: string;
+    inputValue: number | null;
+    outputScore: number;
+    maxScore: number;
+    weight: number;
+    passed: boolean;
+    explanation: string | null;
+    executedAt: Date;
 }
 export interface ValidationResult {
     id: string;
@@ -88,12 +90,18 @@ export interface ValidationResult {
 }
 export interface AuditLogEntry {
     id: string;
-    tableName: string;
-    recordId: string;
+    eventType: string;
+    eventCategory: string;
+    entityType: string | null;
+    entityId: string | null;
+    actorType: string;
+    actorId: string | null;
     action: string;
-    oldValues: Record<string, unknown> | null;
-    newValues: Record<string, unknown> | null;
-    userId: string | null;
+    oldValue: Record<string, unknown> | null;
+    newValue: Record<string, unknown> | null;
+    metadata: Record<string, unknown>;
+    correlationId: string | null;
+    traceId: string | null;
     ipAddress: string | null;
     userAgent: string | null;
     createdAt: Date;
@@ -135,14 +143,17 @@ export interface UpdateAnalysisScoresInput {
 }
 export interface CreateRuleExecutionInput {
     analysisId: string;
+    ruleSetId: string;
+    ruleSetVersion: string;
+    dimension: string;
     ruleId: string;
-    ruleName: string;
-    category: string;
-    inputValue: number | string | null;
-    thresholdUsed: string | null;
-    resultClassification: string;
-    scoreAwarded: number;
-    executionTimeMs: number;
+    fieldName: string;
+    inputValue: number | null;
+    outputScore: number;
+    maxScore: number;
+    weight: number;
+    passed: boolean;
+    explanation: string | null;
 }
 export interface CreateValidationResultInput {
     analysisId: string;
@@ -166,6 +177,187 @@ export interface ListCompaniesParams {
 }
 export interface ListAnalysesParams {
     status?: AnalysisStatus;
+    limit?: number;
+    offset?: number;
+}
+export declare enum SessionStatus {
+    ACTIVE = "ACTIVE",
+    COMPLETED = "COMPLETED",
+    ABANDONED = "ABANDONED"
+}
+export declare enum DocumentUploadStatus {
+    UPLOADING = "UPLOADING",
+    INDEXED = "INDEXED",
+    FAILED = "FAILED"
+}
+export declare enum WorkbenchDocumentType {
+    REGULATION = "REGULATION",
+    GUIDELINE = "GUIDELINE",
+    PRECEDENT = "PRECEDENT",
+    REFERENCE = "REFERENCE"
+}
+export declare enum ConfidenceLevel {
+    HIGH = "HIGH",
+    MEDIUM = "MEDIUM",
+    LOW = "LOW"
+}
+export declare enum RuleValidationStatus {
+    DRAFT = "DRAFT",
+    VALIDATED = "VALIDATED",
+    DEPLOYED = "DEPLOYED"
+}
+export interface ResearchSession {
+    id: string;
+    vertical: string;
+    expertName: string | null;
+    description: string | null;
+    status: SessionStatus;
+    documentCount: number;
+    queryCount: number;
+    ruleCount: number;
+    metadata: Record<string, unknown>;
+    createdAt: Date;
+    updatedAt: Date;
+}
+export interface SessionDocument {
+    id: string;
+    sessionId: string;
+    geminiFileUri: string | null;
+    geminiFileName: string | null;
+    displayName: string;
+    originalFilename: string | null;
+    documentType: WorkbenchDocumentType;
+    mimeType: string | null;
+    fileSizeBytes: number | null;
+    pageCount: number | null;
+    uploadStatus: DocumentUploadStatus;
+    errorMessage: string | null;
+    metadata: Record<string, unknown>;
+    uploadedAt: Date;
+}
+export interface ResearchQuery {
+    id: string;
+    sessionId: string;
+    queryText: string;
+    responseText: string | null;
+    findings: ResearchFinding[];
+    citations: Citation[];
+    confidence: ConfidenceLevel | null;
+    tokensUsed: number | null;
+    processingTimeMs: number | null;
+    errorMessage: string | null;
+    queriedAt: Date;
+}
+export interface ResearchFinding {
+    finding: string;
+    quote: string;
+    source: string;
+    confidence: ConfidenceLevel;
+    exceptions: string;
+}
+export interface Citation {
+    documentId: string;
+    documentName: string;
+    page?: number;
+    section?: string;
+    text: string;
+}
+export interface DraftRule {
+    id: string;
+    sessionId: string;
+    ruleId: string;
+    name: string;
+    category: string | null;
+    ruleType: string | null;
+    ruleDefinition: Record<string, unknown>;
+    ruleYaml: string | null;
+    sourceQueryIds: string[];
+    validationStatus: RuleValidationStatus;
+    testPassCount: number;
+    testFailCount: number;
+    notes: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+}
+export interface RuleTestCase {
+    id: string;
+    sessionId: string;
+    name: string;
+    description: string | null;
+    inputs: Record<string, unknown>;
+    expectedOutputs: Record<string, unknown>;
+    actualOutputs: Record<string, unknown> | null;
+    passed: boolean | null;
+    errorMessage: string | null;
+    executionTimeMs: number | null;
+    testedAt: Date | null;
+    createdAt: Date;
+}
+export interface ExportedRuleSet {
+    id: string;
+    sessionId: string;
+    ruleSetId: string;
+    name: string;
+    version: string;
+    vertical: string;
+    yamlContent: string;
+    filePath: string | null;
+    ruleCount: number | null;
+    testCaseCount: number | null;
+    passRate: number | null;
+    deployedAt: Date | null;
+    deployedTo: string | null;
+    createdAt: Date;
+}
+export interface CreateResearchSessionInput {
+    vertical: string;
+    expertName?: string;
+    description?: string;
+    metadata?: Record<string, unknown>;
+}
+export interface CreateSessionDocumentInput {
+    sessionId: string;
+    geminiFileUri?: string;
+    geminiFileName?: string;
+    displayName: string;
+    originalFilename?: string;
+    documentType?: WorkbenchDocumentType;
+    mimeType?: string;
+    fileSizeBytes?: number;
+    pageCount?: number;
+}
+export interface CreateResearchQueryInput {
+    sessionId: string;
+    queryText: string;
+}
+export interface CreateDraftRuleInput {
+    sessionId: string;
+    ruleId: string;
+    name: string;
+    category?: string;
+    ruleType?: string;
+    ruleDefinition: Record<string, unknown>;
+    ruleYaml?: string;
+    sourceQueryIds?: string[];
+}
+export interface UpdateDraftRuleInput {
+    name?: string;
+    category?: string;
+    ruleType?: string;
+    ruleDefinition?: Record<string, unknown>;
+    ruleYaml?: string;
+    notes?: string;
+}
+export interface CreateRuleTestCaseInput {
+    sessionId: string;
+    name: string;
+    description?: string;
+    inputs: Record<string, unknown>;
+    expectedOutputs: Record<string, unknown>;
+}
+export interface ListSessionsParams {
+    vertical?: string;
+    status?: SessionStatus;
     limit?: number;
     offset?: number;
 }

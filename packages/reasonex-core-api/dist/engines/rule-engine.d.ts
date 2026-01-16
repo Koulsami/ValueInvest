@@ -44,6 +44,8 @@ export interface RuleExecution {
     targetValue: unknown;
     passed: boolean;
     rawScore: number;
+    maxScore: number;
+    weight: number;
     normalizedScore: number;
     explanation: string;
 }

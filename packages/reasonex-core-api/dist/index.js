@@ -24,6 +24,7 @@ const detect_1 = __importDefault(require("./routes/detect"));
 const route_1 = __importDefault(require("./routes/route"));
 const analyses_1 = __importDefault(require("./routes/analyses"));
 const companies_1 = __importDefault(require("./routes/companies"));
+const workbench_1 = __importDefault(require("./routes/workbench"));
 // Create app
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3000;
@@ -90,6 +91,16 @@ app.get('/', (req, res) => {
             companyAnalyses: 'GET /api/v1/companies/:ticker/analyses',
             ruleExecutions: 'GET /api/v1/analyses/:id/rule-executions',
             validations: 'GET /api/v1/analyses/:id/validations',
+            // Phase 3: Rule Development Workbench
+            workbenchSessions: 'POST/GET /api/v1/workbench/sessions',
+            workbenchDocuments: 'POST/GET /api/v1/workbench/sessions/:id/documents',
+            workbenchQueries: 'POST/GET /api/v1/workbench/sessions/:id/queries',
+            workbenchRules: 'POST/GET /api/v1/workbench/sessions/:id/rules',
+            workbenchGenerate: 'POST /api/v1/workbench/sessions/:id/rules/generate',
+            workbenchTestCases: 'POST/GET /api/v1/workbench/sessions/:id/test-cases',
+            workbenchValidate: 'POST /api/v1/workbench/sessions/:id/validate',
+            workbenchExport: 'POST /api/v1/workbench/sessions/:id/export',
+            workbenchDeploy: 'POST /api/v1/workbench/sessions/:id/deploy',
         },
         documentation: 'See API documentation for request/response formats',
     });
@@ -139,6 +150,7 @@ app.use(`${API_PREFIX}/detect`, detect_1.default);
 app.use(`${API_PREFIX}/route`, route_1.default);
 app.use(`${API_PREFIX}/analyses`, analyses_1.default);
 app.use(`${API_PREFIX}/companies`, companies_1.default);
+app.use(`${API_PREFIX}/workbench`, workbench_1.default);
 // Debug endpoint (development only)
 if (process.env.NODE_ENV !== 'production') {
     app.get('/debug/spans', (req, res) => {
