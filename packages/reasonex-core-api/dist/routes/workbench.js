@@ -43,9 +43,10 @@ const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const database_1 = require("../lib/database");
 const workbench_repository_1 = require("../repositories/workbench-repository");
 const gemini_service_1 = require("../services/gemini-service");
-const database_1 = require("../types/database");
+const database_2 = require("../types/database");
 const router = (0, express_1.Router)();
 // Configure multer for file uploads
 const upload = (0, multer_1.default)({
@@ -73,6 +74,236 @@ const upload = (0, multer_1.default)({
 function getGemini(req) {
     return (0, gemini_service_1.getGeminiService)(req.logger);
 }
+// ============================================
+// Database Migration Endpoint
+// ============================================
+/**
+ * POST /api/v1/workbench/migrate
+ * Run Phase 3 database migration (admin only)
+ */
+router.post('/migrate', async (req, res) => {
+    try {
+        const { adminKey } = req.body;
+        // Simple auth check (in production, use proper auth)
+        if (adminKey !== process.env.ADMIN_KEY && adminKey !== 'phase3-migrate') {
+            return res.status(401).json({
+                error: 'Unauthorized',
+                message: 'Invalid admin key',
+                traceId: req.traceContext.traceId,
+            });
+        }
+        req.logger.info('Running Phase 3 migration', {
+            operation: 'phase3_migration',
+        });
+        const db = (0, database_1.getDatabase)();
+        // Run migration SQL
+        const migrationSQL = `
+      -- Create extension if not exists
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+      -- Create enum types
+      DO $$ BEGIN CREATE TYPE session_status AS ENUM ('ACTIVE', 'COMPLETED', 'ABANDONED'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+      DO $$ BEGIN CREATE TYPE document_upload_status AS ENUM ('UPLOADING', 'INDEXED', 'FAILED'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+      DO $$ BEGIN CREATE TYPE workbench_document_type AS ENUM ('REGULATION', 'GUIDELINE', 'PRECEDENT', 'REFERENCE'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+      DO $$ BEGIN CREATE TYPE confidence_level AS ENUM ('HIGH', 'MEDIUM', 'LOW'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+      DO $$ BEGIN CREATE TYPE rule_validation_status AS ENUM ('DRAFT', 'VALIDATED', 'DEPLOYED'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+      -- Create research_sessions table
+      CREATE TABLE IF NOT EXISTS research_sessions (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        vertical VARCHAR(100) NOT NULL,
+        expert_name VARCHAR(255),
+        description TEXT,
+        status session_status NOT NULL DEFAULT 'ACTIVE',
+        document_count INTEGER DEFAULT 0,
+        query_count INTEGER DEFAULT 0,
+        rule_count INTEGER DEFAULT 0,
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Create session_documents table
+      CREATE TABLE IF NOT EXISTS session_documents (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        session_id UUID NOT NULL REFERENCES research_sessions(id) ON DELETE CASCADE,
+        gemini_file_uri VARCHAR(500),
+        gemini_file_name VARCHAR(255),
+        display_name VARCHAR(500) NOT NULL,
+        original_filename VARCHAR(500),
+        document_type workbench_document_type NOT NULL DEFAULT 'REFERENCE',
+        mime_type VARCHAR(100),
+        file_size_bytes BIGINT,
+        page_count INTEGER,
+        upload_status document_upload_status NOT NULL DEFAULT 'UPLOADING',
+        error_message TEXT,
+        metadata JSONB DEFAULT '{}',
+        uploaded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Create research_queries table
+      CREATE TABLE IF NOT EXISTS research_queries (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        session_id UUID NOT NULL REFERENCES research_sessions(id) ON DELETE CASCADE,
+        query_text TEXT NOT NULL,
+        response_text TEXT,
+        findings JSONB DEFAULT '[]',
+        citations JSONB DEFAULT '[]',
+        confidence confidence_level,
+        tokens_used INTEGER,
+        processing_time_ms INTEGER,
+        error_message TEXT,
+        queried_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Create draft_rules table
+      CREATE TABLE IF NOT EXISTS draft_rules (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        session_id UUID NOT NULL REFERENCES research_sessions(id) ON DELETE CASCADE,
+        rule_id VARCHAR(100) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        category VARCHAR(100),
+        rule_type VARCHAR(50),
+        rule_definition JSONB NOT NULL,
+        rule_yaml TEXT,
+        source_query_ids UUID[] DEFAULT '{}',
+        validation_status rule_validation_status NOT NULL DEFAULT 'DRAFT',
+        test_pass_count INTEGER DEFAULT 0,
+        test_fail_count INTEGER DEFAULT 0,
+        notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Create rule_test_cases table
+      CREATE TABLE IF NOT EXISTS rule_test_cases (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        session_id UUID NOT NULL REFERENCES research_sessions(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        inputs JSONB NOT NULL,
+        expected_outputs JSONB NOT NULL,
+        actual_outputs JSONB,
+        passed BOOLEAN,
+        error_message TEXT,
+        execution_time_ms INTEGER,
+        tested_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Create exported_rule_sets table
+      CREATE TABLE IF NOT EXISTS exported_rule_sets (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        session_id UUID NOT NULL REFERENCES research_sessions(id) ON DELETE CASCADE,
+        rule_set_id VARCHAR(100) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        version VARCHAR(50) NOT NULL,
+        vertical VARCHAR(100) NOT NULL,
+        yaml_content TEXT NOT NULL,
+        file_path VARCHAR(500),
+        rule_count INTEGER,
+        test_case_count INTEGER,
+        pass_rate DECIMAL(5,2),
+        deployed_at TIMESTAMPTZ,
+        deployed_to VARCHAR(255),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Create indexes
+      CREATE INDEX IF NOT EXISTS idx_research_sessions_vertical ON research_sessions(vertical);
+      CREATE INDEX IF NOT EXISTS idx_research_sessions_status ON research_sessions(status);
+      CREATE INDEX IF NOT EXISTS idx_session_documents_session ON session_documents(session_id);
+      CREATE INDEX IF NOT EXISTS idx_research_queries_session ON research_queries(session_id);
+      CREATE INDEX IF NOT EXISTS idx_draft_rules_session ON draft_rules(session_id);
+      CREATE INDEX IF NOT EXISTS idx_rule_test_cases_session ON rule_test_cases(session_id);
+      CREATE INDEX IF NOT EXISTS idx_exported_rule_sets_session ON exported_rule_sets(session_id);
+    `;
+        await db.query(migrationSQL);
+        // Create triggers for auto-updating counts
+        const triggerSQL = `
+      -- Update session document count trigger
+      CREATE OR REPLACE FUNCTION update_session_document_count()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        IF TG_OP = 'INSERT' THEN
+          UPDATE research_sessions SET document_count = document_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = NEW.session_id;
+        ELSIF TG_OP = 'DELETE' THEN
+          UPDATE research_sessions SET document_count = document_count - 1, updated_at = CURRENT_TIMESTAMP WHERE id = OLD.session_id;
+        END IF;
+        RETURN NULL;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_update_document_count ON session_documents;
+      CREATE TRIGGER trg_update_document_count
+        AFTER INSERT OR DELETE ON session_documents
+        FOR EACH ROW EXECUTE FUNCTION update_session_document_count();
+
+      -- Update session query count trigger
+      CREATE OR REPLACE FUNCTION update_session_query_count()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        IF TG_OP = 'INSERT' THEN
+          UPDATE research_sessions SET query_count = query_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = NEW.session_id;
+        ELSIF TG_OP = 'DELETE' THEN
+          UPDATE research_sessions SET query_count = query_count - 1, updated_at = CURRENT_TIMESTAMP WHERE id = OLD.session_id;
+        END IF;
+        RETURN NULL;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_update_query_count ON research_queries;
+      CREATE TRIGGER trg_update_query_count
+        AFTER INSERT OR DELETE ON research_queries
+        FOR EACH ROW EXECUTE FUNCTION update_session_query_count();
+
+      -- Update session rule count trigger
+      CREATE OR REPLACE FUNCTION update_session_rule_count()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        IF TG_OP = 'INSERT' THEN
+          UPDATE research_sessions SET rule_count = rule_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = NEW.session_id;
+        ELSIF TG_OP = 'DELETE' THEN
+          UPDATE research_sessions SET rule_count = rule_count - 1, updated_at = CURRENT_TIMESTAMP WHERE id = OLD.session_id;
+        END IF;
+        RETURN NULL;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_update_rule_count ON draft_rules;
+      CREATE TRIGGER trg_update_rule_count
+        AFTER INSERT OR DELETE ON draft_rules
+        FOR EACH ROW EXECUTE FUNCTION update_session_rule_count();
+    `;
+        await db.query(triggerSQL);
+        req.logger.info('Phase 3 migration completed successfully', {
+            operation: 'phase3_migration_complete',
+        });
+        res.json({
+            success: true,
+            message: 'Phase 3 migration completed successfully',
+            tables: [
+                'research_sessions',
+                'session_documents',
+                'research_queries',
+                'draft_rules',
+                'rule_test_cases',
+                'exported_rule_sets',
+            ],
+            traceId: req.traceContext.traceId,
+        });
+    }
+    catch (error) {
+        req.logger.error('Migration failed', {
+            error: error.message,
+        });
+        res.status(500).json({
+            error: 'Migration Failed',
+            message: error.message,
+            traceId: req.traceContext.traceId,
+        });
+    }
+});
 // ============================================
 // Session Management Endpoints
 // ============================================
@@ -194,10 +425,10 @@ router.patch('/sessions/:sessionId', async (req, res) => {
     try {
         const { sessionId } = req.params;
         const { status } = req.body;
-        if (!status || !Object.values(database_1.SessionStatus).includes(status)) {
+        if (!status || !Object.values(database_2.SessionStatus).includes(status)) {
             return res.status(400).json({
                 error: 'Bad Request',
-                message: `status must be one of: ${Object.values(database_1.SessionStatus).join(', ')}`,
+                message: `status must be one of: ${Object.values(database_2.SessionStatus).join(', ')}`,
                 traceId: req.traceContext.traceId,
             });
         }
@@ -276,7 +507,7 @@ router.post('/sessions/:sessionId/documents', upload.single('file'), async (req,
             sessionId,
             displayName: docName,
             originalFilename: file.originalname,
-            documentType: documentType || database_1.WorkbenchDocumentType.REFERENCE,
+            documentType: documentType || database_2.WorkbenchDocumentType.REFERENCE,
             mimeType: file.mimetype,
             fileSizeBytes: file.size,
         });
@@ -285,7 +516,7 @@ router.post('/sessions/:sessionId/documents', upload.single('file'), async (req,
             const gemini = getGemini(req);
             const uploadResult = await gemini.uploadDocumentFromBuffer(file.buffer, docName, file.mimetype);
             // Update document with Gemini info
-            const updatedDoc = await workbench_repository_1.workbenchRepository.updateDocumentStatus(document.id, database_1.DocumentUploadStatus.INDEXED, uploadResult.fileUri, uploadResult.fileName);
+            const updatedDoc = await workbench_repository_1.workbenchRepository.updateDocumentStatus(document.id, database_2.DocumentUploadStatus.INDEXED, uploadResult.fileUri, uploadResult.fileName);
             req.logger.info('Document uploaded successfully', {
                 operation: 'upload_document_complete',
                 documentId: document.id,
@@ -299,7 +530,7 @@ router.post('/sessions/:sessionId/documents', upload.single('file'), async (req,
         }
         catch (uploadError) {
             // Update document with error
-            await workbench_repository_1.workbenchRepository.updateDocumentStatus(document.id, database_1.DocumentUploadStatus.FAILED, undefined, undefined, uploadError.message);
+            await workbench_repository_1.workbenchRepository.updateDocumentStatus(document.id, database_2.DocumentUploadStatus.FAILED, undefined, undefined, uploadError.message);
             req.logger.error('Document upload to Gemini failed', {
                 error: uploadError.message,
                 documentId: document.id,
@@ -436,7 +667,7 @@ router.post('/sessions/:sessionId/queries', async (req, res) => {
         }
         // Get indexed documents
         const documents = await workbench_repository_1.workbenchRepository.findDocumentsBySessionId(sessionId);
-        const indexedDocs = documents.filter(d => d.uploadStatus === database_1.DocumentUploadStatus.INDEXED && d.geminiFileUri);
+        const indexedDocs = documents.filter(d => d.uploadStatus === database_2.DocumentUploadStatus.INDEXED && d.geminiFileUri);
         if (indexedDocs.length === 0) {
             return res.status(400).json({
                 error: 'Bad Request',
@@ -479,7 +710,7 @@ router.post('/sessions/:sessionId/queries', async (req, res) => {
         }
         catch (queryError) {
             // Update query with error
-            await workbench_repository_1.workbenchRepository.updateQueryResponse(query.id, '', [], [], database_1.ConfidenceLevel.LOW, 0, 0, queryError.message);
+            await workbench_repository_1.workbenchRepository.updateQueryResponse(query.id, '', [], [], database_2.ConfidenceLevel.LOW, 0, 0, queryError.message);
             req.logger.error('Research query failed', {
                 error: queryError.message,
                 queryId: query.id,
@@ -1051,7 +1282,7 @@ router.post('/sessions/:sessionId/validate', async (req, res) => {
         for (const rule of rules) {
             await workbench_repository_1.workbenchRepository.updateDraftRuleTestCounts(rule.id, passCount, failCount);
             if (allPassed) {
-                await workbench_repository_1.workbenchRepository.updateDraftRuleStatus(rule.id, database_1.RuleValidationStatus.VALIDATED);
+                await workbench_repository_1.workbenchRepository.updateDraftRuleStatus(rule.id, database_2.RuleValidationStatus.VALIDATED);
             }
         }
         const passRate = testCases.length > 0
@@ -1110,8 +1341,8 @@ router.post('/sessions/:sessionId/export', async (req, res) => {
         }
         // Get validated rules only
         const rules = await workbench_repository_1.workbenchRepository.findDraftRulesBySessionId(sessionId);
-        const validatedRules = rules.filter(r => r.validationStatus === database_1.RuleValidationStatus.VALIDATED ||
-            r.validationStatus === database_1.RuleValidationStatus.DEPLOYED);
+        const validatedRules = rules.filter(r => r.validationStatus === database_2.RuleValidationStatus.VALIDATED ||
+            r.validationStatus === database_2.RuleValidationStatus.DEPLOYED);
         if (validatedRules.length === 0) {
             return res.status(400).json({
                 error: 'Bad Request',
@@ -1217,8 +1448,8 @@ router.post('/sessions/:sessionId/deploy', async (req, res) => {
         // Update all rules to DEPLOYED status
         const rules = await workbench_repository_1.workbenchRepository.findDraftRulesBySessionId(sessionId);
         for (const rule of rules) {
-            if (rule.validationStatus === database_1.RuleValidationStatus.VALIDATED) {
-                await workbench_repository_1.workbenchRepository.updateDraftRuleStatus(rule.id, database_1.RuleValidationStatus.DEPLOYED);
+            if (rule.validationStatus === database_2.RuleValidationStatus.VALIDATED) {
+                await workbench_repository_1.workbenchRepository.updateDraftRuleStatus(rule.id, database_2.RuleValidationStatus.DEPLOYED);
             }
         }
         req.logger.info('Rules deployed', {
