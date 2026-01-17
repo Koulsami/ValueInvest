@@ -1,0 +1,348 @@
+{
+  "id": "fisher-v1",
+  "name": "Fisher Quality Growth",
+  "version": "1.0.0",
+  "vertical": "investment",
+  "description": "Philip Fisher's quality growth criteria emphasizing outstanding management, R&D effectiveness, and long-term growth potential",
+  "investor": "Philip Fisher",
+  "philosophy": "The stock market is filled with individuals who know the price of everything, but the value of nothing.",
+  "totalMaxScore": 100,
+  "aggregation": "weighted_average",
+  "passingThreshold": 60,
+  "recommendationThresholds": {
+    "strong_buy": 80,
+    "buy": 70,
+    "hold": 50,
+    "sell": 35
+  },
+  "dimensions": [
+    {
+      "id": "management",
+      "name": "Management Excellence",
+      "weight": 0.30,
+      "maxScore": 30,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "FISHER_MANAGEMENT_INTEGRITY": 0.30,
+        "FISHER_MANAGEMENT_DEPTH": 0.25,
+        "FISHER_LABOR_RELATIONS": 0.25,
+        "FISHER_EXECUTIVE_RELATIONS": 0.20
+      },
+      "rules": [
+        {
+          "id": "FISHER_MANAGEMENT_INTEGRITY",
+          "name": "Management Integrity",
+          "description": "Does management communicate honestly with shareholders?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MANAGEMENT.integrity",
+          "lookup": {
+            "EXCELLENT": 100,
+            "GOOD": 75,
+            "AVERAGE": 45,
+            "POOR": 15,
+            "QUESTIONABLE": 0
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "FISHER_MANAGEMENT_DEPTH",
+          "name": "Management Depth",
+          "description": "Does the company have depth of management talent?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MANAGEMENT.depth",
+          "lookup": {
+            "DEEP": 100,
+            "ADEQUATE": 70,
+            "THIN": 40,
+            "WEAK": 15
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "FISHER_LABOR_RELATIONS",
+          "name": "Labor Relations",
+          "description": "Does the company have good employee relations?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MANAGEMENT.employee_relations",
+          "lookup": {
+            "EXCELLENT": 100,
+            "GOOD": 80,
+            "AVERAGE": 55,
+            "POOR": 25,
+            "PROBLEMATIC": 10
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "FISHER_EXECUTIVE_RELATIONS",
+          "name": "Executive Relations",
+          "description": "Do executives work well together?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MANAGEMENT.executive_cohesion",
+          "lookup": {
+            "STRONG": 100,
+            "GOOD": 75,
+            "AVERAGE": 50,
+            "WEAK": 25,
+            "DYSFUNCTIONAL": 5
+          },
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "growth",
+      "name": "Growth & Innovation",
+      "weight": 0.30,
+      "maxScore": 30,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "FISHER_RD_EFFECTIVENESS": 0.30,
+        "FISHER_RD_SPENDING": 0.25,
+        "FISHER_LONG_TERM_GROWTH": 0.25,
+        "FISHER_PRODUCT_PIPELINE": 0.20
+      },
+      "rules": [
+        {
+          "id": "FISHER_RD_EFFECTIVENESS",
+          "name": "R&D Effectiveness",
+          "description": "Does R&D spending produce profitable products?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.INNOVATION.rd_effectiveness",
+          "lookup": {
+            "EXCELLENT": 100,
+            "GOOD": 80,
+            "AVERAGE": 55,
+            "POOR": 25,
+            "INEFFECTIVE": 5
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "FISHER_RD_SPENDING",
+          "name": "R&D Investment",
+          "description": "R&D spending as percentage of revenue",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.rd_to_revenue",
+          "thresholds": [
+            { "min": 0.15, "score": 100, "label": "Heavy Investment (>15%)" },
+            { "min": 0.10, "score": 85, "label": "Strong (10-15%)" },
+            { "min": 0.05, "score": 70, "label": "Moderate (5-10%)" },
+            { "min": 0.02, "score": 50, "label": "Light (2-5%)" },
+            { "min": 0, "score": 30, "label": "Minimal (<2%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "FISHER_LONG_TERM_GROWTH",
+          "name": "Long-Term Growth Potential",
+          "description": "Does the company have products that will drive growth for years?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.GROWTH.long_term_potential",
+          "lookup": {
+            "EXCEPTIONAL": 100,
+            "STRONG": 80,
+            "MODERATE": 55,
+            "LIMITED": 30,
+            "DECLINING": 10
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "FISHER_PRODUCT_PIPELINE",
+          "name": "Product Pipeline",
+          "description": "Strength of new product development pipeline",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.INNOVATION.pipeline_strength",
+          "lookup": {
+            "ROBUST": 100,
+            "GOOD": 75,
+            "ADEQUATE": 50,
+            "THIN": 30,
+            "EMPTY": 10
+          },
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "margins",
+      "name": "Profit Margins",
+      "weight": 0.20,
+      "maxScore": 20,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "FISHER_PROFIT_MARGIN": 0.40,
+        "FISHER_MARGIN_IMPROVEMENT": 0.35,
+        "FISHER_COST_CONTROL": 0.25
+      },
+      "rules": [
+        {
+          "id": "FISHER_PROFIT_MARGIN",
+          "name": "Net Profit Margin",
+          "description": "Does the company achieve outstanding profit margins?",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.net_margin",
+          "thresholds": [
+            { "min": 0.20, "score": 100, "label": "Outstanding (>20%)" },
+            { "min": 0.15, "score": 85, "label": "Excellent (15-20%)" },
+            { "min": 0.10, "score": 70, "label": "Good (10-15%)" },
+            { "min": 0.05, "score": 50, "label": "Average (5-10%)" },
+            { "min": 0, "score": 25, "label": "Low (<5%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "FISHER_MARGIN_IMPROVEMENT",
+          "name": "Margin Trend",
+          "description": "Are profit margins improving over time?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.FINANCIAL.margin_trend",
+          "lookup": {
+            "IMPROVING": 100,
+            "STABLE": 70,
+            "DECLINING": 15,
+            "VOLATILE": 40
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "FISHER_COST_CONTROL",
+          "name": "Cost Control",
+          "description": "Is management doing a good job of cost control?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MANAGEMENT.cost_control",
+          "lookup": {
+            "EXCELLENT": 100,
+            "GOOD": 75,
+            "AVERAGE": 50,
+            "POOR": 25,
+            "WEAK": 10
+          },
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "competitive",
+      "name": "Competitive Position",
+      "weight": 0.20,
+      "maxScore": 20,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "FISHER_SALES_ORGANIZATION": 0.25,
+        "FISHER_INDUSTRY_POSITION": 0.30,
+        "FISHER_CUSTOMER_RELATIONS": 0.25,
+        "FISHER_COMPETITIVE_ADVANTAGE": 0.20
+      },
+      "rules": [
+        {
+          "id": "FISHER_SALES_ORGANIZATION",
+          "name": "Sales Organization",
+          "description": "Does the company have an outstanding sales organization?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.BUSINESS.sales_organization",
+          "lookup": {
+            "OUTSTANDING": 100,
+            "GOOD": 75,
+            "ADEQUATE": 50,
+            "WEAK": 25
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "FISHER_INDUSTRY_POSITION",
+          "name": "Industry Position",
+          "description": "Is the company a leader in its industry?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.BUSINESS.industry_position",
+          "lookup": {
+            "LEADER": 100,
+            "TOP_3": 85,
+            "STRONG_COMPETITOR": 65,
+            "AVERAGE": 45,
+            "LAGGARD": 20
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "FISHER_CUSTOMER_RELATIONS",
+          "name": "Customer Relations",
+          "description": "Does the company have excellent customer relationships?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.BUSINESS.customer_relations",
+          "lookup": {
+            "EXCELLENT": 100,
+            "GOOD": 75,
+            "AVERAGE": 50,
+            "POOR": 25,
+            "PROBLEMATIC": 10
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "FISHER_COMPETITIVE_ADVANTAGE",
+          "name": "Competitive Advantage Durability",
+          "description": "How durable is the company's competitive advantage?",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MOAT.sustainability",
+          "lookup": {
+            "VERY_DURABLE": 100,
+            "DURABLE": 80,
+            "MODERATE": 55,
+            "WEAK": 30,
+            "NONE": 10
+          },
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    }
+  ],
+  "classifications": [
+    {
+      "name": "Strong Buy",
+      "minScore": 80,
+      "maxScore": 100,
+      "recommendation": "Exceptional Fisher-style quality growth company - long-term hold candidate"
+    },
+    {
+      "name": "Buy",
+      "minScore": 70,
+      "maxScore": 79.99,
+      "recommendation": "Strong quality growth characteristics - good long-term investment"
+    },
+    {
+      "name": "Hold",
+      "minScore": 50,
+      "maxScore": 69.99,
+      "recommendation": "Decent company but may lack some Fisher quality criteria"
+    },
+    {
+      "name": "Watch",
+      "minScore": 35,
+      "maxScore": 49.99,
+      "recommendation": "Does not fully meet Fisher's quality standards - monitor for improvement"
+    },
+    {
+      "name": "Avoid",
+      "minScore": 0,
+      "maxScore": 34.99,
+      "recommendation": "Does not meet Fisher's stringent quality growth requirements"
+    }
+  ]
+}

@@ -1,9 +1,10 @@
 {
   "id": "investment-v1",
   "name": "Value Investment Scoring",
-  "version": "1.0.0",
+  "version": "2.0.0-stage2-aligned",
   "vertical": "investment",
-  "description": "Comprehensive value investment scoring based on valuation, quality, growth, dividend, and moat metrics",
+  "description": "Value investment scoring using exact formulas from stage2_scoring.json workflow. 5 dimensions: Valuation (30pts), Quality (25pts), Growth (20pts), Dividend (15pts), Moat (10pts). Total: 100 points.",
+  "_formulaSource": "workflows/stage2_scoring.json - Calculate Base Scores node",
   "totalMaxScore": 100,
   "aggregation": "weighted_average",
   "dimensions": [

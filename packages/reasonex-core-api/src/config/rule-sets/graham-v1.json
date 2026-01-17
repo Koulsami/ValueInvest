@@ -1,0 +1,330 @@
+{
+  "id": "graham-v1",
+  "name": "Graham Deep Value",
+  "version": "1.0.0",
+  "vertical": "investment",
+  "description": "Benjamin Graham's deep value criteria emphasizing margin of safety, balance sheet strength, and statistical cheapness",
+  "investor": "Benjamin Graham",
+  "philosophy": "The margin of safety is always dependent on the price paid.",
+  "totalMaxScore": 100,
+  "aggregation": "weighted_average",
+  "passingThreshold": 60,
+  "recommendationThresholds": {
+    "strong_buy": 80,
+    "buy": 70,
+    "hold": 50,
+    "sell": 35
+  },
+  "dimensions": [
+    {
+      "id": "valuation",
+      "name": "Valuation",
+      "weight": 0.35,
+      "maxScore": 35,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "GRAHAM_PE_RATIO": 0.25,
+        "GRAHAM_PB_RATIO": 0.25,
+        "GRAHAM_PE_PB_PRODUCT": 0.25,
+        "GRAHAM_EARNINGS_YIELD": 0.25
+      },
+      "rules": [
+        {
+          "id": "GRAHAM_PE_RATIO",
+          "name": "P/E Ratio",
+          "description": "Graham preferred P/E under 15, ideally under 10",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.VALUATION.pe_ratio",
+          "inverse": true,
+          "thresholds": [
+            { "max": 10, "score": 100, "label": "Deep Value (<10)" },
+            { "max": 15, "score": 85, "label": "Value (10-15)" },
+            { "max": 20, "score": 60, "label": "Fair (15-20)" },
+            { "max": 999, "score": 20, "label": "Expensive (>20)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "GRAHAM_PB_RATIO",
+          "name": "P/B Ratio",
+          "description": "Graham preferred P/B under 1.5, ideally under 1.0",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.VALUATION.pb_ratio",
+          "inverse": true,
+          "thresholds": [
+            { "max": 1.0, "score": 100, "label": "Deep Value (<1.0)" },
+            { "max": 1.5, "score": 85, "label": "Value (1.0-1.5)" },
+            { "max": 2.5, "score": 60, "label": "Fair (1.5-2.5)" },
+            { "max": 999, "score": 20, "label": "Expensive (>2.5)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "GRAHAM_PE_PB_PRODUCT",
+          "name": "Graham Number (P/E × P/B)",
+          "description": "P/E times P/B should be under 22.5 (Graham Number)",
+          "ruleType": "FORMULA",
+          "fields": ["WHAT.VALUATION.pe_ratio", "WHAT.VALUATION.pb_ratio"],
+          "formula": "pe_ratio * pb_ratio",
+          "inverse": true,
+          "thresholds": [
+            { "max": 15, "score": 100, "label": "Strong Graham (<15)" },
+            { "max": 22.5, "score": 85, "label": "Graham Approved (<22.5)" },
+            { "max": 30, "score": 50, "label": "Borderline (22.5-30)" },
+            { "max": 999, "score": 10, "label": "Fails Graham (>30)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "GRAHAM_EARNINGS_YIELD",
+          "name": "Earnings Yield",
+          "description": "Inverse of P/E - should be at least double the AAA bond rate",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.VALUATION.earnings_yield",
+          "thresholds": [
+            { "min": 0.10, "score": 100, "label": "Excellent (>10%)" },
+            { "min": 0.07, "score": 80, "label": "Good (7-10%)" },
+            { "min": 0.05, "score": 60, "label": "Fair (5-7%)" },
+            { "min": 0, "score": 25, "label": "Low (<5%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "safety",
+      "name": "Financial Safety",
+      "weight": 0.30,
+      "maxScore": 30,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "GRAHAM_CURRENT_RATIO": 0.30,
+        "GRAHAM_DEBT_TO_EQUITY": 0.30,
+        "GRAHAM_NCAV": 0.25,
+        "GRAHAM_FINANCIAL_STRENGTH": 0.15
+      },
+      "rules": [
+        {
+          "id": "GRAHAM_CURRENT_RATIO",
+          "name": "Current Ratio",
+          "description": "Graham required current ratio of at least 2.0",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.current_ratio",
+          "thresholds": [
+            { "min": 2.5, "score": 100, "label": "Strong (>2.5)" },
+            { "min": 2.0, "score": 85, "label": "Good (2.0-2.5)" },
+            { "min": 1.5, "score": 60, "label": "Adequate (1.5-2.0)" },
+            { "min": 0, "score": 20, "label": "Weak (<1.5)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "GRAHAM_DEBT_TO_EQUITY",
+          "name": "Debt to Equity",
+          "description": "Graham preferred minimal debt - D/E under 0.5",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.debt_to_equity",
+          "inverse": true,
+          "thresholds": [
+            { "max": 0.5, "score": 100, "label": "Conservative (<0.5)" },
+            { "max": 1.0, "score": 75, "label": "Moderate (0.5-1.0)" },
+            { "max": 1.5, "score": 50, "label": "Higher (1.0-1.5)" },
+            { "max": 999, "score": 15, "label": "High (>1.5)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "GRAHAM_NCAV",
+          "name": "Net Current Asset Value",
+          "description": "Price to NCAV - Graham's famous net-net criterion",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.VALUATION.price_to_ncav",
+          "inverse": true,
+          "thresholds": [
+            { "max": 0.67, "score": 100, "label": "Net-Net (<0.67)" },
+            { "max": 1.0, "score": 85, "label": "Below NCAV (<1.0)" },
+            { "max": 1.5, "score": 50, "label": "Above NCAV (1.0-1.5)" },
+            { "max": 999, "score": 10, "label": "No NCAV Margin (>1.5)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "GRAHAM_FINANCIAL_STRENGTH",
+          "name": "Financial Strength Rating",
+          "description": "Overall financial health rating",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.FINANCIAL.financial_strength",
+          "lookup": {
+            "A_PLUS": 100,
+            "A": 85,
+            "B_PLUS": 70,
+            "B": 55,
+            "C": 30,
+            "D": 10
+          },
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "earnings",
+      "name": "Earnings Quality",
+      "weight": 0.20,
+      "maxScore": 20,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "GRAHAM_EARNINGS_STABILITY": 0.35,
+        "GRAHAM_EARNINGS_GROWTH": 0.35,
+        "GRAHAM_EARNINGS_QUALITY": 0.30
+      },
+      "rules": [
+        {
+          "id": "GRAHAM_EARNINGS_STABILITY",
+          "name": "Earnings Stability (10Y)",
+          "description": "Graham required 10 years of continuous positive earnings",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.profitable_years_10",
+          "thresholds": [
+            { "min": 10, "score": 100, "label": "Perfect (10/10)" },
+            { "min": 8, "score": 80, "label": "Strong (8-9/10)" },
+            { "min": 6, "score": 55, "label": "Moderate (6-7/10)" },
+            { "min": 0, "score": 20, "label": "Weak (<6/10)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "GRAHAM_EARNINGS_GROWTH",
+          "name": "EPS Growth (10Y)",
+          "description": "Graham wanted at least 33% EPS growth over 10 years",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.eps_growth_10y",
+          "thresholds": [
+            { "min": 0.50, "score": 100, "label": "Strong (>50%)" },
+            { "min": 0.33, "score": 85, "label": "Good (33-50%)" },
+            { "min": 0.15, "score": 60, "label": "Moderate (15-33%)" },
+            { "min": 0, "score": 30, "label": "Weak (<15%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "GRAHAM_EARNINGS_QUALITY",
+          "name": "Earnings Quality",
+          "description": "Quality and reliability of reported earnings",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.FINANCIAL.earnings_quality",
+          "lookup": {
+            "HIGH": 100,
+            "MODERATE": 65,
+            "LOW": 30,
+            "POOR": 10
+          },
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "dividend",
+      "name": "Dividend",
+      "weight": 0.15,
+      "maxScore": 15,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "GRAHAM_DIVIDEND_HISTORY": 0.40,
+        "GRAHAM_DIVIDEND_YIELD": 0.35,
+        "GRAHAM_PAYOUT_RATIO": 0.25
+      },
+      "rules": [
+        {
+          "id": "GRAHAM_DIVIDEND_HISTORY",
+          "name": "Dividend History",
+          "description": "Graham required 20+ years of uninterrupted dividends",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.DIVIDEND.consecutive_years",
+          "thresholds": [
+            { "min": 20, "score": 100, "label": "Dividend Aristocrat (20+)" },
+            { "min": 10, "score": 75, "label": "Established (10-20)" },
+            { "min": 5, "score": 50, "label": "Growing (5-10)" },
+            { "min": 0, "score": 20, "label": "Limited (<5)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "GRAHAM_DIVIDEND_YIELD",
+          "name": "Dividend Yield",
+          "description": "Current dividend yield",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.DIVIDEND.yield",
+          "thresholds": [
+            { "min": 0.04, "score": 100, "label": "High (>4%)" },
+            { "min": 0.025, "score": 80, "label": "Good (2.5-4%)" },
+            { "min": 0.01, "score": 55, "label": "Low (1-2.5%)" },
+            { "min": 0, "score": 25, "label": "Minimal (<1%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "GRAHAM_PAYOUT_RATIO",
+          "name": "Payout Ratio",
+          "description": "Ideal payout ratio is 30-60%",
+          "ruleType": "RANGE",
+          "field": "WHAT.DIVIDEND.payout_ratio",
+          "ranges": [
+            { "min": 0.30, "max": 0.60, "score": 100, "label": "Ideal (30-60%)" },
+            { "min": 0.20, "max": 0.30, "score": 80, "label": "Low but OK (20-30%)" },
+            { "min": 0.60, "max": 0.80, "score": 70, "label": "High but OK (60-80%)" },
+            { "min": 0, "max": 0.20, "score": 50, "label": "Very Low (<20%)" },
+            { "min": 0.80, "max": 1.0, "score": 40, "label": "Very High (80-100%)" }
+          ],
+          "defaultScore": 30,
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    }
+  ],
+  "classifications": [
+    {
+      "name": "Strong Buy",
+      "minScore": 80,
+      "maxScore": 100,
+      "recommendation": "Exceptional Graham-style value with strong margin of safety"
+    },
+    {
+      "name": "Buy",
+      "minScore": 70,
+      "maxScore": 79.99,
+      "recommendation": "Good Graham-style value investment"
+    },
+    {
+      "name": "Hold",
+      "minScore": 50,
+      "maxScore": 69.99,
+      "recommendation": "Meets some Graham criteria but lacks strong margin of safety"
+    },
+    {
+      "name": "Watch",
+      "minScore": 35,
+      "maxScore": 49.99,
+      "recommendation": "Does not meet Graham's value criteria - monitor for price decline"
+    },
+    {
+      "name": "Avoid",
+      "minScore": 0,
+      "maxScore": 34.99,
+      "recommendation": "Fails Graham's fundamental requirements"
+    }
+  ]
+}

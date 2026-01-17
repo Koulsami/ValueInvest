@@ -1,5 +1,77 @@
 import { Logger } from '../lib/logger';
 export type RuleOperator = 'lt' | 'lte' | 'gt' | 'gte' | 'eq' | 'neq' | 'between' | 'in';
+export type LegendaryRuleType = 'THRESHOLD' | 'LOOKUP' | 'BOOLEAN' | 'FORMULA' | 'RANGE';
+export interface ThresholdLevel {
+    min?: number;
+    max?: number;
+    score: number;
+    label: string;
+}
+export interface RangeLevel {
+    min: number;
+    max: number;
+    score: number;
+    label: string;
+}
+export interface LegendaryRule {
+    id: string;
+    name: string;
+    description?: string;
+    ruleType: LegendaryRuleType;
+    field?: string;
+    fields?: string[];
+    inverse?: boolean;
+    thresholds?: ThresholdLevel[];
+    lookup?: Record<string, number>;
+    ranges?: RangeLevel[];
+    formula?: string;
+    trueScore?: number;
+    falseScore?: number;
+    defaultScore?: number;
+    maxScore: number;
+    minScore?: number;
+}
+export interface LegendaryDimension {
+    id: string;
+    name: string;
+    weight: number;
+    maxScore: number;
+    aggregation: 'weighted_sum' | 'average' | 'max' | 'min' | 'composite';
+    ruleWeights?: Record<string, number>;
+    rules: LegendaryRule[];
+}
+export interface LegendaryRuleSet {
+    id: string;
+    name: string;
+    version: string;
+    vertical: string;
+    description?: string;
+    investor?: string;
+    philosophy?: string;
+    totalMaxScore: number;
+    aggregation: 'weighted_average' | 'sum' | 'max' | 'composite';
+    passingThreshold?: number;
+    recommendationThresholds?: {
+        strong_buy: number;
+        buy: number;
+        hold: number;
+        sell: number;
+    };
+    isComposite?: boolean;
+    compositeWeights?: Record<string, number>;
+    dimensions: LegendaryDimension[];
+    classifications: Classification[];
+}
+export interface CompositeScoreResult extends ScoringResult {
+    isComposite: true;
+    components: Record<string, {
+        total: number;
+        weight: number;
+        weighted: number;
+        classification: string;
+        recommendation: string;
+    }>;
+}
 export interface Rule {
     id: string;
     field: string;
@@ -181,7 +253,51 @@ export declare class RuleEngine {
     /**
      * Generic score method - routes to appropriate scorer based on vertical
      */
-    score(data: Record<string, unknown>, ruleSetId: string, context?: Record<string, unknown>, debugMode?: boolean): ScoringResult;
+    score(data: Record<string, unknown>, ruleSetId: string, context?: Record<string, unknown>, debugMode?: boolean): ScoringResult | CompositeScoreResult;
+    /**
+     * Score using legendary investor rule sets (Buffett, Graham, Lynch, Fisher)
+     */
+    private scoreLegendaryInvestor;
+    /**
+     * Score a dimension using legendary investor rules
+     */
+    private scoreLegendaryDimension;
+    /**
+     * Execute a legendary investor rule
+     */
+    private executeLegendaryRule;
+    /**
+     * Evaluate THRESHOLD rule type
+     */
+    private evaluateThreshold;
+    /**
+     * Evaluate LOOKUP rule type
+     */
+    private evaluateLookup;
+    /**
+     * Evaluate BOOLEAN rule type
+     */
+    private evaluateBoolean;
+    /**
+     * Evaluate FORMULA rule type
+     */
+    private evaluateFormula;
+    /**
+     * Evaluate RANGE rule type
+     */
+    private evaluateRange;
+    /**
+     * Get nested value from data object using dot notation
+     */
+    private getNestedValue;
+    /**
+     * Classify score using legendary rule set thresholds
+     */
+    private classifyLegendary;
+    /**
+     * Score using composite rule set (weighted blend of multiple rule sets)
+     */
+    private scoreComposite;
     /**
      * Generic config-based scoring (for non-investment verticals)
      */

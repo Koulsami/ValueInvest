@@ -6,7 +6,93 @@ import * as path from 'path';
 // Rule operators
 export type RuleOperator = 'lt' | 'lte' | 'gt' | 'gte' | 'eq' | 'neq' | 'between' | 'in';
 
-// Rule definition
+// New rule types for legendary investor rule sets
+export type LegendaryRuleType = 'THRESHOLD' | 'LOOKUP' | 'BOOLEAN' | 'FORMULA' | 'RANGE';
+
+// Threshold definition for THRESHOLD rules
+export interface ThresholdLevel {
+  min?: number;
+  max?: number;
+  score: number;
+  label: string;
+}
+
+// Range definition for RANGE rules
+export interface RangeLevel {
+  min: number;
+  max: number;
+  score: number;
+  label: string;
+}
+
+// Legendary investor rule definition
+export interface LegendaryRule {
+  id: string;
+  name: string;
+  description?: string;
+  ruleType: LegendaryRuleType;
+  field?: string;           // For single-field rules
+  fields?: string[];        // For FORMULA rules with multiple inputs
+  inverse?: boolean;        // For THRESHOLD rules where lower is better
+  thresholds?: ThresholdLevel[];
+  lookup?: Record<string, number>;
+  ranges?: RangeLevel[];
+  formula?: string;
+  trueScore?: number;       // For BOOLEAN rules
+  falseScore?: number;      // For BOOLEAN rules
+  defaultScore?: number;
+  maxScore: number;
+  minScore?: number;
+}
+
+// Legendary investor dimension
+export interface LegendaryDimension {
+  id: string;
+  name: string;
+  weight: number;
+  maxScore: number;
+  aggregation: 'weighted_sum' | 'average' | 'max' | 'min' | 'composite';
+  ruleWeights?: Record<string, number>;
+  rules: LegendaryRule[];
+}
+
+// Legendary investor rule set
+export interface LegendaryRuleSet {
+  id: string;
+  name: string;
+  version: string;
+  vertical: string;
+  description?: string;
+  investor?: string;
+  philosophy?: string;
+  totalMaxScore: number;
+  aggregation: 'weighted_average' | 'sum' | 'max' | 'composite';
+  passingThreshold?: number;
+  recommendationThresholds?: {
+    strong_buy: number;
+    buy: number;
+    hold: number;
+    sell: number;
+  };
+  isComposite?: boolean;
+  compositeWeights?: Record<string, number>;
+  dimensions: LegendaryDimension[];
+  classifications: Classification[];
+}
+
+// Composite scoring result
+export interface CompositeScoreResult extends ScoringResult {
+  isComposite: true;
+  components: Record<string, {
+    total: number;
+    weight: number;
+    weighted: number;
+    classification: string;
+    recommendation: string;
+  }>;
+}
+
+// Rule definition (original format for backward compatibility)
 export interface Rule {
   id: string;
   field: string;
@@ -673,14 +759,591 @@ export class RuleEngine {
     ruleSetId: string,
     context?: Record<string, unknown>,
     debugMode: boolean = false
-  ): ScoringResult {
+  ): ScoringResult | CompositeScoreResult {
     // For investment-v1, use the specialized scorer
     if (ruleSetId === 'investment-v1') {
       return this.scoreInvestment(data, debugMode);
     }
 
+    // Check if this is a legendary investor rule set
+    const ruleSet = this.ruleSets.get(ruleSetId) as LegendaryRuleSet | RuleSet | undefined;
+    if (ruleSet) {
+      // Check for composite rule set
+      if ((ruleSet as LegendaryRuleSet).isComposite && (ruleSet as LegendaryRuleSet).compositeWeights) {
+        return this.scoreComposite(data, ruleSet as LegendaryRuleSet, debugMode);
+      }
+
+      // Check for legendary investor rule set (has ruleType in rules)
+      const firstDimension = ruleSet.dimensions[0];
+      if (firstDimension?.rules?.[0] && 'ruleType' in firstDimension.rules[0]) {
+        return this.scoreLegendaryInvestor(data, ruleSet as LegendaryRuleSet, debugMode);
+      }
+    }
+
     // Otherwise, use generic config-based scoring
     return this.scoreGeneric(data, ruleSetId, context, debugMode);
+  }
+
+  /**
+   * Score using legendary investor rule sets (Buffett, Graham, Lynch, Fisher)
+   */
+  private scoreLegendaryInvestor(
+    data: Record<string, unknown>,
+    ruleSet: LegendaryRuleSet,
+    debugMode: boolean = false
+  ): ScoringResult {
+    return this.tracer.withSpanSync('scoreLegendaryInvestor', (span) => {
+      const startTime = Date.now();
+
+      span.setAttributes({
+        ruleSetId: ruleSet.id,
+        investor: ruleSet.investor || 'unknown',
+        debugMode,
+        dataKeys: Object.keys(data).length,
+      });
+
+      this.logger.info('Starting legendary investor scoring', {
+        operation: 'scoreLegendaryInvestor',
+        ruleSetId: ruleSet.id,
+        investor: ruleSet.investor,
+        dataKeys: Object.keys(data).length,
+      });
+
+      const dimensionScores: DimensionScore[] = [];
+      let totalScore = 0;
+
+      for (const dimension of ruleSet.dimensions) {
+        const dimScore = this.scoreLegendaryDimension(dimension, data);
+        dimensionScores.push(dimScore);
+        totalScore += dimScore.weightedScore;
+      }
+
+      totalScore = Math.round(totalScore * 100) / 100;
+      const percentage = (totalScore / ruleSet.totalMaxScore) * 100;
+
+      // Classify using rule set thresholds
+      const { name: classification, recommendation } = this.classifyLegendary(totalScore, ruleSet);
+
+      const executionTime = Date.now() - startTime;
+
+      // Build explanation
+      const dimensionSummaries = dimensionScores.map(d => `${d.dimensionName}: ${d.rawScore.toFixed(1)}/${d.maxScore}`);
+      const explanation = [
+        `${ruleSet.investor || ruleSet.name} Analysis`,
+        `Total Score: ${totalScore}/${ruleSet.totalMaxScore} (${percentage.toFixed(1)}%)`,
+        `Classification: ${classification}`,
+        ``,
+        `Philosophy: "${ruleSet.philosophy || ''}"`,
+        ``,
+        `Breakdown:`,
+        ...dimensionSummaries.map(s => `  ${s}`),
+      ].join('\n');
+
+      const result: ScoringResult = {
+        ruleSetId: ruleSet.id,
+        ruleSetName: ruleSet.name,
+        vertical: ruleSet.vertical,
+        timestamp: new Date().toISOString(),
+        scores: {
+          dimensions: dimensionScores,
+          total: totalScore,
+          maxPossible: ruleSet.totalMaxScore,
+          percentage,
+        },
+        classification,
+        recommendation,
+        explanation,
+      };
+
+      if (debugMode) {
+        result.debugInfo = {
+          inputData: data,
+          ruleSetVersion: ruleSet.version,
+          executionTime_ms: executionTime,
+        };
+      }
+
+      span.setAttributes({
+        totalScore,
+        classification,
+        executionTime_ms: executionTime,
+      });
+
+      this.logger.info('Legendary investor scoring complete', {
+        operation: 'scoreLegendaryInvestor',
+        ruleSetId: ruleSet.id,
+        investor: ruleSet.investor,
+        totalScore,
+        classification,
+        executionTime_ms: executionTime,
+      });
+
+      return result;
+    });
+  }
+
+  /**
+   * Score a dimension using legendary investor rules
+   */
+  private scoreLegendaryDimension(
+    dimension: LegendaryDimension,
+    data: Record<string, unknown>
+  ): DimensionScore {
+    const ruleExecutions: RuleExecution[] = [];
+    let totalRawScore = 0;
+    const baseRuleMaxScore = 12; // Standard rule max score for normalization
+
+    for (const rule of dimension.rules) {
+      const execution = this.executeLegendaryRule(rule, data);
+      ruleExecutions.push(execution);
+
+      const ruleWeight = dimension.ruleWeights?.[rule.id] || 1 / dimension.rules.length;
+
+      switch (dimension.aggregation) {
+        case 'weighted_sum':
+          totalRawScore += execution.rawScore * ruleWeight;
+          break;
+        case 'average':
+          totalRawScore += execution.rawScore / dimension.rules.length;
+          break;
+        case 'max':
+          totalRawScore = Math.max(totalRawScore, execution.rawScore);
+          break;
+        case 'min':
+          if (totalRawScore === 0) {
+            totalRawScore = execution.rawScore;
+          } else {
+            totalRawScore = Math.min(totalRawScore, execution.rawScore);
+          }
+          break;
+      }
+    }
+
+    // Scale to dimension max score
+    const multiplier = dimension.maxScore / baseRuleMaxScore;
+    const rawScore = Math.min(dimension.maxScore, totalRawScore * multiplier);
+    const weightedScore = rawScore * dimension.weight;
+
+    const passedRules = ruleExecutions.filter(r => r.passed).length;
+    const explanation = `${dimension.name}: ${rawScore.toFixed(2)}/${dimension.maxScore} (${passedRules}/${dimension.rules.length} rules passed)`;
+
+    return {
+      dimensionId: dimension.id,
+      dimensionName: dimension.name,
+      weight: dimension.weight,
+      maxScore: dimension.maxScore,
+      rawScore: Math.round(rawScore * 100) / 100,
+      weightedScore: Math.round(weightedScore * 100) / 100,
+      ruleExecutions,
+      explanation,
+    };
+  }
+
+  /**
+   * Execute a legendary investor rule
+   */
+  private executeLegendaryRule(
+    rule: LegendaryRule,
+    data: Record<string, unknown>
+  ): RuleExecution {
+    const field = rule.field || rule.fields?.[0] || '';
+    const inputValue = this.getNestedValue(data, field);
+
+    let rawScore = 0;
+    let passed = false;
+    let explanation = '';
+
+    switch (rule.ruleType) {
+      case 'THRESHOLD':
+        ({ rawScore, passed, explanation } = this.evaluateThreshold(rule, inputValue));
+        break;
+      case 'LOOKUP':
+        ({ rawScore, passed, explanation } = this.evaluateLookup(rule, inputValue));
+        break;
+      case 'BOOLEAN':
+        ({ rawScore, passed, explanation } = this.evaluateBoolean(rule, inputValue));
+        break;
+      case 'FORMULA':
+        ({ rawScore, passed, explanation } = this.evaluateFormula(rule, data));
+        break;
+      case 'RANGE':
+        ({ rawScore, passed, explanation } = this.evaluateRange(rule, inputValue));
+        break;
+      default:
+        explanation = `Unknown rule type: ${rule.ruleType}`;
+    }
+
+    // Normalize score to 0-12 range (standard rule max)
+    const normalizedScore = (rawScore / 100) * rule.maxScore;
+
+    return {
+      ruleId: rule.id,
+      field: field,
+      inputValue,
+      operator: 'gte' as RuleOperator, // Placeholder for compatibility
+      targetValue: rule.thresholds?.[0]?.min || rule.lookup || null,
+      passed,
+      rawScore: normalizedScore,
+      maxScore: rule.maxScore,
+      weight: 1,
+      normalizedScore: normalizedScore / rule.maxScore,
+      explanation: `${rule.name}: ${explanation}`,
+    };
+  }
+
+  /**
+   * Evaluate THRESHOLD rule type
+   */
+  private evaluateThreshold(
+    rule: LegendaryRule,
+    value: unknown
+  ): { rawScore: number; passed: boolean; explanation: string } {
+    const numValue = typeof value === 'number' ? value : 0;
+    const thresholds = rule.thresholds || [];
+
+    // Sort thresholds appropriately based on inverse flag
+    const sortedThresholds = [...thresholds];
+    if (rule.inverse) {
+      // For inverse (lower is better), sort by max descending
+      sortedThresholds.sort((a, b) => (b.max || 0) - (a.max || 0));
+    } else {
+      // For normal (higher is better), sort by min descending
+      sortedThresholds.sort((a, b) => (b.min || 0) - (a.min || 0));
+    }
+
+    for (const threshold of sortedThresholds) {
+      if (rule.inverse) {
+        // Lower is better - check if value is under max
+        if (threshold.max !== undefined && numValue <= threshold.max) {
+          return {
+            rawScore: threshold.score,
+            passed: threshold.score >= 50,
+            explanation: `${numValue} → ${threshold.label} (${threshold.score}%)`,
+          };
+        }
+      } else {
+        // Higher is better - check if value is at or above min
+        if (threshold.min !== undefined && numValue >= threshold.min) {
+          return {
+            rawScore: threshold.score,
+            passed: threshold.score >= 50,
+            explanation: `${typeof numValue === 'number' ? (numValue * 100).toFixed(1) + '%' : numValue} → ${threshold.label} (${threshold.score}%)`,
+          };
+        }
+      }
+    }
+
+    return {
+      rawScore: rule.defaultScore || 0,
+      passed: false,
+      explanation: `${numValue} → No matching threshold`,
+    };
+  }
+
+  /**
+   * Evaluate LOOKUP rule type
+   */
+  private evaluateLookup(
+    rule: LegendaryRule,
+    value: unknown
+  ): { rawScore: number; passed: boolean; explanation: string } {
+    const lookup = rule.lookup || {};
+    const strValue = String(value).toUpperCase();
+
+    const score = lookup[strValue] ?? lookup[String(value)] ?? rule.defaultScore ?? 0;
+
+    return {
+      rawScore: score,
+      passed: score >= 50,
+      explanation: `${value} → ${score}%`,
+    };
+  }
+
+  /**
+   * Evaluate BOOLEAN rule type
+   */
+  private evaluateBoolean(
+    rule: LegendaryRule,
+    value: unknown
+  ): { rawScore: number; passed: boolean; explanation: string } {
+    const boolValue = Boolean(value);
+    const score = boolValue ? (rule.trueScore || 100) : (rule.falseScore || 0);
+
+    return {
+      rawScore: score,
+      passed: boolValue,
+      explanation: `${value} → ${score}%`,
+    };
+  }
+
+  /**
+   * Evaluate FORMULA rule type
+   */
+  private evaluateFormula(
+    rule: LegendaryRule,
+    data: Record<string, unknown>
+  ): { rawScore: number; passed: boolean; explanation: string } {
+    const fields = rule.fields || [];
+    const values: Record<string, number> = {};
+
+    for (const field of fields) {
+      const parts = field.split('.');
+      const varName = parts[parts.length - 1]; // Use last part as variable name
+      values[varName] = this.getNestedValue(data, field) as number || 0;
+    }
+
+    try {
+      // Build formula with values
+      let expression = rule.formula || '';
+      for (const [key, val] of Object.entries(values)) {
+        expression = expression.replace(new RegExp(`\\b${key}\\b`, 'g'), val.toString());
+      }
+
+      // eslint-disable-next-line no-new-func
+      const result = new Function(`return ${expression}`)() as number;
+
+      // Evaluate against thresholds
+      if (rule.thresholds) {
+        const thresholdResult = this.evaluateThreshold(
+          { ...rule, field: 'formula_result' },
+          result
+        );
+        return {
+          ...thresholdResult,
+          explanation: `${rule.formula} = ${result.toFixed(2)} → ${thresholdResult.explanation}`,
+        };
+      }
+
+      return {
+        rawScore: Math.min(100, Math.max(0, result)),
+        passed: result >= 50,
+        explanation: `${rule.formula} = ${result.toFixed(2)}`,
+      };
+    } catch (error) {
+      this.logger.warn('Formula evaluation failed', {
+        formula: rule.formula,
+        error: (error as Error).message
+      });
+      return {
+        rawScore: 0,
+        passed: false,
+        explanation: `Formula error: ${(error as Error).message}`,
+      };
+    }
+  }
+
+  /**
+   * Evaluate RANGE rule type
+   */
+  private evaluateRange(
+    rule: LegendaryRule,
+    value: unknown
+  ): { rawScore: number; passed: boolean; explanation: string } {
+    const numValue = typeof value === 'number' ? value : 0;
+    const ranges = rule.ranges || [];
+
+    for (const range of ranges) {
+      if (numValue >= range.min && numValue <= range.max) {
+        return {
+          rawScore: range.score,
+          passed: range.score >= 50,
+          explanation: `${(numValue * 100).toFixed(1)}% → ${range.label} (${range.score}%)`,
+        };
+      }
+    }
+
+    return {
+      rawScore: rule.defaultScore || 0,
+      passed: false,
+      explanation: `${numValue} → Outside all ranges`,
+    };
+  }
+
+  /**
+   * Get nested value from data object using dot notation
+   */
+  private getNestedValue(data: Record<string, unknown>, path: string): unknown {
+    const parts = path.split('.');
+    let value: unknown = data;
+
+    for (const part of parts) {
+      if (value === null || value === undefined || typeof value !== 'object') {
+        return undefined;
+      }
+      value = (value as Record<string, unknown>)[part];
+    }
+
+    return value;
+  }
+
+  /**
+   * Classify score using legendary rule set thresholds
+   */
+  private classifyLegendary(
+    score: number,
+    ruleSet: LegendaryRuleSet
+  ): { name: string; recommendation: string } {
+    // First try recommendation thresholds
+    const thresholds = ruleSet.recommendationThresholds;
+    if (thresholds) {
+      if (score >= thresholds.strong_buy) {
+        const cls = ruleSet.classifications.find(c => c.name === 'Strong Buy');
+        return { name: 'Strong Buy', recommendation: cls?.recommendation || 'Highly recommended' };
+      }
+      if (score >= thresholds.buy) {
+        const cls = ruleSet.classifications.find(c => c.name === 'Buy');
+        return { name: 'Buy', recommendation: cls?.recommendation || 'Recommended' };
+      }
+      if (score >= thresholds.hold) {
+        const cls = ruleSet.classifications.find(c => c.name === 'Hold');
+        return { name: 'Hold', recommendation: cls?.recommendation || 'Hold position' };
+      }
+      if (score >= thresholds.sell) {
+        const cls = ruleSet.classifications.find(c => c.name === 'Watch');
+        return { name: 'Watch', recommendation: cls?.recommendation || 'Monitor closely' };
+      }
+      const cls = ruleSet.classifications.find(c => c.name === 'Avoid');
+      return { name: 'Avoid', recommendation: cls?.recommendation || 'Not recommended' };
+    }
+
+    // Fall back to classifications array
+    return this.classify(score, ruleSet.classifications);
+  }
+
+  /**
+   * Score using composite rule set (weighted blend of multiple rule sets)
+   */
+  private scoreComposite(
+    data: Record<string, unknown>,
+    compositeRuleSet: LegendaryRuleSet,
+    debugMode: boolean = false
+  ): CompositeScoreResult {
+    return this.tracer.withSpanSync('scoreComposite', (span) => {
+      const startTime = Date.now();
+
+      span.setAttributes({
+        ruleSetId: compositeRuleSet.id,
+        debugMode,
+        componentCount: Object.keys(compositeRuleSet.compositeWeights || {}).length,
+      });
+
+      this.logger.info('Starting composite scoring', {
+        operation: 'scoreComposite',
+        ruleSetId: compositeRuleSet.id,
+        components: Object.keys(compositeRuleSet.compositeWeights || {}),
+      });
+
+      const componentScores: Record<string, {
+        total: number;
+        weight: number;
+        weighted: number;
+        classification: string;
+        recommendation: string;
+      }> = {};
+
+      let compositeTotal = 0;
+      const weights = compositeRuleSet.compositeWeights || {};
+
+      for (const [componentId, weight] of Object.entries(weights)) {
+        const componentRuleSet = this.ruleSets.get(componentId) as LegendaryRuleSet | undefined;
+
+        if (!componentRuleSet) {
+          this.logger.warn(`Component rule set not found: ${componentId}`);
+          continue;
+        }
+
+        const componentResult = this.scoreLegendaryInvestor(data, componentRuleSet, false);
+
+        componentScores[componentId] = {
+          total: componentResult.scores.total,
+          weight: weight,
+          weighted: componentResult.scores.total * weight,
+          classification: componentResult.classification,
+          recommendation: componentResult.recommendation,
+        };
+
+        compositeTotal += componentResult.scores.total * weight;
+      }
+
+      compositeTotal = Math.round(compositeTotal * 100) / 100;
+      const percentage = (compositeTotal / compositeRuleSet.totalMaxScore) * 100;
+
+      // Classify composite score
+      const { name: classification, recommendation } = this.classifyLegendary(compositeTotal, compositeRuleSet);
+
+      const executionTime = Date.now() - startTime;
+
+      // Build explanation
+      const componentSummaries = Object.entries(componentScores)
+        .map(([id, score]) => `  ${id}: ${score.total.toFixed(1)} × ${(score.weight * 100).toFixed(0)}% = ${score.weighted.toFixed(1)} (${score.classification})`)
+        .join('\n');
+
+      const explanation = [
+        `Composite Legendary Investor Analysis`,
+        `Total Score: ${compositeTotal}/${compositeRuleSet.totalMaxScore} (${percentage.toFixed(1)}%)`,
+        `Classification: ${classification}`,
+        ``,
+        `Component Scores:`,
+        componentSummaries,
+        ``,
+        `Philosophy: "${compositeRuleSet.philosophy || ''}"`,
+      ].join('\n');
+
+      // Create composite dimension for compatibility
+      const compositeDimension: DimensionScore = {
+        dimensionId: 'composite',
+        dimensionName: 'Composite Score',
+        weight: 1,
+        maxScore: compositeRuleSet.totalMaxScore,
+        rawScore: compositeTotal,
+        weightedScore: compositeTotal,
+        ruleExecutions: [],
+        explanation: `Weighted average of ${Object.keys(componentScores).length} investor strategies`,
+      };
+
+      const result: CompositeScoreResult = {
+        ruleSetId: compositeRuleSet.id,
+        ruleSetName: compositeRuleSet.name,
+        vertical: compositeRuleSet.vertical,
+        timestamp: new Date().toISOString(),
+        scores: {
+          dimensions: [compositeDimension],
+          total: compositeTotal,
+          maxPossible: compositeRuleSet.totalMaxScore,
+          percentage,
+        },
+        classification,
+        recommendation,
+        explanation,
+        isComposite: true,
+        components: componentScores,
+      };
+
+      if (debugMode) {
+        result.debugInfo = {
+          inputData: data,
+          ruleSetVersion: compositeRuleSet.version,
+          executionTime_ms: executionTime,
+        };
+      }
+
+      span.setAttributes({
+        compositeTotal,
+        classification,
+        executionTime_ms: executionTime,
+      });
+
+      this.logger.info('Composite scoring complete', {
+        operation: 'scoreComposite',
+        ruleSetId: compositeRuleSet.id,
+        compositeTotal,
+        classification,
+        componentCount: Object.keys(componentScores).length,
+        executionTime_ms: executionTime,
+      });
+
+      return result;
+    });
   }
 
   /**

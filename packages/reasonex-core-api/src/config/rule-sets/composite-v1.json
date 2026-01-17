@@ -1,0 +1,93 @@
+{
+  "id": "composite-v1",
+  "name": "Composite Legendary Investor",
+  "version": "1.0.0",
+  "vertical": "investment",
+  "description": "Weighted blend of four legendary investor strategies: Buffett's quality moat focus (30%), Graham's deep value discipline (25%), Lynch's GARP approach (25%), and Fisher's quality growth criteria (20%)",
+  "investor": "Composite",
+  "philosophy": "Combines the best of four legendary investors: Buffett's moat focus, Graham's margin of safety, Lynch's growth at reasonable price, and Fisher's quality management.",
+  "isComposite": true,
+  "totalMaxScore": 100,
+  "aggregation": "composite",
+  "passingThreshold": 60,
+  "recommendationThresholds": {
+    "strong_buy": 80,
+    "buy": 70,
+    "hold": 50,
+    "sell": 35
+  },
+  "compositeWeights": {
+    "buffett-v1": 0.30,
+    "graham-v1": 0.25,
+    "lynch-v1": 0.25,
+    "fisher-v1": 0.20
+  },
+  "dimensions": [
+    {
+      "id": "composite",
+      "name": "Overall Composite Score",
+      "weight": 1.0,
+      "maxScore": 100,
+      "aggregation": "composite",
+      "rules": []
+    }
+  ],
+  "classifications": [
+    {
+      "name": "Strong Buy",
+      "minScore": 80,
+      "maxScore": 100,
+      "recommendation": "Exceptional investment - meets criteria of multiple legendary investors"
+    },
+    {
+      "name": "Buy",
+      "minScore": 70,
+      "maxScore": 79.99,
+      "recommendation": "Good investment with broad appeal across investment styles"
+    },
+    {
+      "name": "Hold",
+      "minScore": 50,
+      "maxScore": 69.99,
+      "recommendation": "Mixed signals - may suit some investment styles better than others"
+    },
+    {
+      "name": "Watch",
+      "minScore": 35,
+      "maxScore": 49.99,
+      "recommendation": "Below average across most investor criteria"
+    },
+    {
+      "name": "Avoid",
+      "minScore": 0,
+      "maxScore": 34.99,
+      "recommendation": "Does not meet criteria of any legendary investor philosophy"
+    }
+  ],
+  "componentDescriptions": {
+    "buffett-v1": {
+      "name": "Buffett Value Investing",
+      "weight": 0.30,
+      "focus": "Quality companies with durable competitive moats at fair prices",
+      "keyMetrics": ["ROIC", "ROE", "Moat Classification", "Management Quality", "P/E Ratio"]
+    },
+    "graham-v1": {
+      "name": "Graham Deep Value",
+      "weight": 0.25,
+      "focus": "Statistically cheap stocks with strong balance sheets and margin of safety",
+      "keyMetrics": ["Graham Number", "Current Ratio", "P/B Ratio", "Dividend History", "NCAV"]
+    },
+    "lynch-v1": {
+      "name": "Lynch GARP Strategy",
+      "weight": 0.25,
+      "focus": "Growth at reasonable price with PEG ratio focus",
+      "keyMetrics": ["PEG Ratio", "Earnings Growth", "Growth Runway", "Company Category", "Institutional Ownership"]
+    },
+    "fisher-v1": {
+      "name": "Fisher Quality Growth",
+      "weight": 0.20,
+      "focus": "Outstanding management, R&D effectiveness, and long-term growth",
+      "keyMetrics": ["Management Integrity", "R&D Effectiveness", "Profit Margins", "Industry Position", "Competitive Durability"]
+    }
+  }
+}

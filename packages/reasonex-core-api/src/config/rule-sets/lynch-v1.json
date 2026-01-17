@@ -1,0 +1,302 @@
+{
+  "id": "lynch-v1",
+  "name": "Lynch GARP Strategy",
+  "version": "1.0.0",
+  "vertical": "investment",
+  "description": "Peter Lynch's Growth at Reasonable Price (GARP) strategy focusing on PEG ratio, growth potential, and knowing what you own",
+  "investor": "Peter Lynch",
+  "philosophy": "Know what you own, and know why you own it.",
+  "totalMaxScore": 100,
+  "aggregation": "weighted_average",
+  "passingThreshold": 60,
+  "recommendationThresholds": {
+    "strong_buy": 80,
+    "buy": 70,
+    "hold": 50,
+    "sell": 35
+  },
+  "dimensions": [
+    {
+      "id": "garp",
+      "name": "Growth at Reasonable Price",
+      "weight": 0.35,
+      "maxScore": 35,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "LYNCH_PEG_RATIO": 0.45,
+        "LYNCH_PE_TO_GROWTH": 0.35,
+        "LYNCH_EARNINGS_LINE": 0.20
+      },
+      "rules": [
+        {
+          "id": "LYNCH_PEG_RATIO",
+          "name": "PEG Ratio",
+          "description": "Lynch's signature metric - P/E divided by growth rate. Under 1.0 is ideal",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.VALUATION.peg_ratio",
+          "inverse": true,
+          "thresholds": [
+            { "max": 0.5, "score": 100, "label": "Excellent (<0.5)" },
+            { "max": 1.0, "score": 90, "label": "Good (<1.0)" },
+            { "max": 1.5, "score": 70, "label": "Fair (1.0-1.5)" },
+            { "max": 2.0, "score": 45, "label": "High (1.5-2.0)" },
+            { "max": 999, "score": 15, "label": "Overvalued (>2.0)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "LYNCH_PE_TO_GROWTH",
+          "name": "P/E to Growth Rate",
+          "description": "Alternative PEG calculation using 5-year growth rate",
+          "ruleType": "FORMULA",
+          "fields": ["WHAT.VALUATION.pe_ratio", "WHAT.FINANCIAL.earnings_growth_5y"],
+          "formula": "pe_ratio / (earnings_growth_5y * 100)",
+          "inverse": true,
+          "thresholds": [
+            { "max": 0.5, "score": 100, "label": "Excellent (<0.5)" },
+            { "max": 1.0, "score": 85, "label": "Good (<1.0)" },
+            { "max": 1.5, "score": 65, "label": "Fair (1.0-1.5)" },
+            { "max": 999, "score": 25, "label": "Overvalued (>1.5)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "LYNCH_EARNINGS_LINE",
+          "name": "Price vs Earnings Line",
+          "description": "Is stock price below, at, or above the earnings line (fair value)",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.VALUATION.price_vs_earnings_line",
+          "lookup": {
+            "BELOW": 100,
+            "SIGNIFICANTLY_BELOW": 100,
+            "AT": 75,
+            "SLIGHTLY_ABOVE": 50,
+            "ABOVE": 25,
+            "SIGNIFICANTLY_ABOVE": 10
+          },
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "growth",
+      "name": "Growth Quality",
+      "weight": 0.25,
+      "maxScore": 25,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "LYNCH_EARNINGS_GROWTH": 0.40,
+        "LYNCH_REVENUE_GROWTH": 0.35,
+        "LYNCH_GROWTH_RUNWAY": 0.25
+      },
+      "rules": [
+        {
+          "id": "LYNCH_EARNINGS_GROWTH",
+          "name": "Earnings Growth (5Y)",
+          "description": "Lynch loved fast growers with 20-25% annual earnings growth",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.earnings_growth_5y",
+          "thresholds": [
+            { "min": 0.25, "score": 100, "label": "Fast Grower (>25%)" },
+            { "min": 0.20, "score": 90, "label": "Strong (20-25%)" },
+            { "min": 0.15, "score": 75, "label": "Good (15-20%)" },
+            { "min": 0.10, "score": 55, "label": "Moderate (10-15%)" },
+            { "min": 0, "score": 30, "label": "Slow (<10%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "LYNCH_REVENUE_GROWTH",
+          "name": "Revenue Growth (5Y)",
+          "description": "Revenue growth should support earnings growth",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.revenue_growth_5y",
+          "thresholds": [
+            { "min": 0.20, "score": 100, "label": "Strong (>20%)" },
+            { "min": 0.15, "score": 85, "label": "Good (15-20%)" },
+            { "min": 0.10, "score": 70, "label": "Moderate (10-15%)" },
+            { "min": 0.05, "score": 50, "label": "Slow (5-10%)" },
+            { "min": 0, "score": 25, "label": "Stagnant (<5%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "LYNCH_GROWTH_RUNWAY",
+          "name": "Growth Runway",
+          "description": "How much growth potential remains in the story",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.GROWTH.runway",
+          "lookup": {
+            "LONG": 100,
+            "MEDIUM": 70,
+            "SHORT": 40,
+            "EXHAUSTED": 15
+          },
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "position",
+      "name": "Competitive Position",
+      "weight": 0.20,
+      "maxScore": 20,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "LYNCH_MARKET_POSITION": 0.35,
+        "LYNCH_INDUSTRY_GROWTH": 0.35,
+        "LYNCH_COMPANY_TYPE": 0.30
+      },
+      "rules": [
+        {
+          "id": "LYNCH_MARKET_POSITION",
+          "name": "Market Position",
+          "description": "Company's position within its market",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.BUSINESS.market_position",
+          "lookup": {
+            "DOMINANT": 100,
+            "NICHE_LEADER": 85,
+            "STRONG": 80,
+            "GROWING": 65,
+            "AVERAGE": 45,
+            "WEAK": 20
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "LYNCH_INDUSTRY_GROWTH",
+          "name": "Industry Growth Rate",
+          "description": "Growth rate of the industry the company operates in",
+          "ruleType": "THRESHOLD",
+          "field": "WHICH.industry_growth_rate",
+          "thresholds": [
+            { "min": 0.15, "score": 100, "label": "High Growth (>15%)" },
+            { "min": 0.10, "score": 80, "label": "Growing (10-15%)" },
+            { "min": 0.05, "score": 60, "label": "Moderate (5-10%)" },
+            { "min": 0, "score": 35, "label": "Slow (<5%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "LYNCH_COMPANY_TYPE",
+          "name": "Lynch Company Category",
+          "description": "Lynch's famous company classification system",
+          "ruleType": "LOOKUP",
+          "field": "WHICH.lynch_category",
+          "lookup": {
+            "FAST_GROWER": 100,
+            "STALWART": 75,
+            "TURNAROUND": 70,
+            "CYCLICAL": 60,
+            "SLOW_GROWER": 40,
+            "ASSET_PLAY": 55
+          },
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "fundamentals",
+      "name": "Fundamental Strength",
+      "weight": 0.20,
+      "maxScore": 20,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "LYNCH_DEBT_LEVEL": 0.35,
+        "LYNCH_PROFIT_MARGINS": 0.35,
+        "LYNCH_INSTITUTIONAL_OWNERSHIP": 0.30
+      },
+      "rules": [
+        {
+          "id": "LYNCH_DEBT_LEVEL",
+          "name": "Debt Level",
+          "description": "Lynch preferred companies with manageable debt",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.debt_to_equity",
+          "inverse": true,
+          "thresholds": [
+            { "max": 0.30, "score": 100, "label": "Low (<0.3)" },
+            { "max": 0.60, "score": 80, "label": "Moderate (0.3-0.6)" },
+            { "max": 1.00, "score": 60, "label": "Manageable (0.6-1.0)" },
+            { "max": 999, "score": 25, "label": "High (>1.0)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "LYNCH_PROFIT_MARGINS",
+          "name": "Margin Trend",
+          "description": "Lynch watched for expanding or stable margins",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.FINANCIAL.margin_trend",
+          "lookup": {
+            "EXPANDING": 100,
+            "STABLE": 70,
+            "DECLINING": 15,
+            "VOLATILE": 40
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "LYNCH_INSTITUTIONAL_OWNERSHIP",
+          "name": "Institutional Ownership",
+          "description": "Lynch preferred stocks with low institutional ownership (undiscovered)",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.OWNERSHIP.institutional_pct",
+          "inverse": true,
+          "thresholds": [
+            { "max": 0.30, "score": 100, "label": "Under-owned (<30%)" },
+            { "max": 0.50, "score": 80, "label": "Moderate (30-50%)" },
+            { "max": 0.70, "score": 60, "label": "Well-owned (50-70%)" },
+            { "max": 1.0, "score": 40, "label": "Over-owned (>70%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    }
+  ],
+  "classifications": [
+    {
+      "name": "Strong Buy",
+      "minScore": 80,
+      "maxScore": 100,
+      "recommendation": "Excellent Lynch-style GARP opportunity - strong growth at reasonable price"
+    },
+    {
+      "name": "Buy",
+      "minScore": 70,
+      "maxScore": 79.99,
+      "recommendation": "Good GARP candidate with attractive growth characteristics"
+    },
+    {
+      "name": "Hold",
+      "minScore": 50,
+      "maxScore": 69.99,
+      "recommendation": "Decent growth story but valuation may be stretched"
+    },
+    {
+      "name": "Watch",
+      "minScore": 35,
+      "maxScore": 49.99,
+      "recommendation": "Growth may be slowing or price too high relative to growth"
+    },
+    {
+      "name": "Avoid",
+      "minScore": 0,
+      "maxScore": 34.99,
+      "recommendation": "Does not meet Lynch's GARP criteria"
+    }
+  ]
+}

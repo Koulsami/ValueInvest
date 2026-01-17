@@ -1,0 +1,432 @@
+{
+  "id": "buffett-v1",
+  "name": "Buffett Value Investing",
+  "version": "1.0.0",
+  "vertical": "investment",
+  "description": "Warren Buffett's value investing criteria focusing on wonderful companies at fair prices with durable competitive moats",
+  "investor": "Warren Buffett",
+  "philosophy": "It's far better to buy a wonderful company at a fair price than a fair company at a wonderful price.",
+  "totalMaxScore": 100,
+  "aggregation": "weighted_average",
+  "passingThreshold": 60,
+  "recommendationThresholds": {
+    "strong_buy": 80,
+    "buy": 70,
+    "hold": 50,
+    "sell": 35
+  },
+  "dimensions": [
+    {
+      "id": "moat",
+      "name": "Economic Moat",
+      "weight": 0.30,
+      "maxScore": 30,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "BUFFETT_MOAT_CLASSIFICATION": 0.30,
+        "BUFFETT_SWITCHING_COSTS": 0.20,
+        "BUFFETT_BRAND_POWER": 0.20,
+        "BUFFETT_NETWORK_EFFECTS": 0.15,
+        "BUFFETT_COST_ADVANTAGE": 0.15
+      },
+      "rules": [
+        {
+          "id": "BUFFETT_MOAT_CLASSIFICATION",
+          "name": "Moat Classification",
+          "description": "Overall moat strength classification",
+          "ruleType": "LOOKUP",
+          "field": "WHICH.moat_classification",
+          "lookup": {
+            "WIDE": 100,
+            "NARROW": 50,
+            "NONE": 0
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_SWITCHING_COSTS",
+          "name": "Switching Costs",
+          "description": "Customer lock-in through high switching costs",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MOAT.switching_costs",
+          "lookup": {
+            "HIGH": 100,
+            "MODERATE": 60,
+            "LOW": 30,
+            "NONE": 0
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_BRAND_POWER",
+          "name": "Brand Power",
+          "description": "Intangible assets including brand value",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MOAT.intangible_assets",
+          "lookup": {
+            "HIGH": 100,
+            "MODERATE": 60,
+            "LOW": 30,
+            "NONE": 0
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_NETWORK_EFFECTS",
+          "name": "Network Effects",
+          "description": "Value increases with user base",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MOAT.network_effects",
+          "lookup": {
+            "HIGH": 100,
+            "MODERATE": 60,
+            "LOW": 30,
+            "NONE": 0
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_COST_ADVANTAGE",
+          "name": "Cost Advantages",
+          "description": "Structural cost advantages over competitors",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MOAT.cost_advantages",
+          "lookup": {
+            "HIGH": 100,
+            "MODERATE": 60,
+            "LOW": 30,
+            "NONE": 0
+          },
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "quality",
+      "name": "Business Quality",
+      "weight": 0.25,
+      "maxScore": 25,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "BUFFETT_ROIC": 0.25,
+        "BUFFETT_ROE": 0.25,
+        "BUFFETT_GROSS_MARGIN": 0.20,
+        "BUFFETT_OPERATING_MARGIN": 0.15,
+        "BUFFETT_DEBT_LEVEL": 0.15
+      },
+      "rules": [
+        {
+          "id": "BUFFETT_ROIC",
+          "name": "Return on Invested Capital",
+          "description": "ROIC measures how efficiently capital is deployed",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.roic",
+          "thresholds": [
+            { "min": 0.25, "score": 100, "label": "Exceptional (>25%)" },
+            { "min": 0.20, "score": 85, "label": "Excellent (20-25%)" },
+            { "min": 0.15, "score": 70, "label": "Good (15-20%)" },
+            { "min": 0.10, "score": 50, "label": "Acceptable (10-15%)" },
+            { "min": 0, "score": 20, "label": "Poor (<10%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_ROE",
+          "name": "Return on Equity",
+          "description": "ROE measures profitability relative to shareholder equity",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.roe",
+          "thresholds": [
+            { "min": 0.25, "score": 100, "label": "Exceptional (>25%)" },
+            { "min": 0.20, "score": 85, "label": "Excellent (20-25%)" },
+            { "min": 0.15, "score": 70, "label": "Good (15-20%)" },
+            { "min": 0.10, "score": 50, "label": "Acceptable (10-15%)" },
+            { "min": 0, "score": 20, "label": "Poor (<10%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_GROSS_MARGIN",
+          "name": "Gross Margin",
+          "description": "High gross margins indicate pricing power",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.gross_margin",
+          "thresholds": [
+            { "min": 0.60, "score": 100, "label": "Exceptional (>60%)" },
+            { "min": 0.40, "score": 80, "label": "Good (40-60%)" },
+            { "min": 0.25, "score": 60, "label": "Acceptable (25-40%)" },
+            { "min": 0, "score": 30, "label": "Low (<25%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_OPERATING_MARGIN",
+          "name": "Operating Margin",
+          "description": "Operating efficiency indicator",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.operating_margin",
+          "thresholds": [
+            { "min": 0.30, "score": 100, "label": "Exceptional (>30%)" },
+            { "min": 0.20, "score": 80, "label": "Good (20-30%)" },
+            { "min": 0.15, "score": 60, "label": "Acceptable (15-20%)" },
+            { "min": 0, "score": 30, "label": "Low (<15%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_DEBT_LEVEL",
+          "name": "Debt Level",
+          "description": "Conservative debt levels preferred (lower is better)",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.debt_to_equity",
+          "inverse": true,
+          "thresholds": [
+            { "max": 0.30, "score": 100, "label": "Conservative (<0.3)" },
+            { "max": 0.50, "score": 80, "label": "Moderate (0.3-0.5)" },
+            { "max": 1.00, "score": 60, "label": "Acceptable (0.5-1.0)" },
+            { "max": 999, "score": 20, "label": "High (>1.0)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "management",
+      "name": "Management Quality",
+      "weight": 0.15,
+      "maxScore": 15,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "BUFFETT_MANAGEMENT_QUALITY": 0.40,
+        "BUFFETT_CAPITAL_ALLOCATION": 0.35,
+        "BUFFETT_INSIDER_OWNERSHIP": 0.25
+      },
+      "rules": [
+        {
+          "id": "BUFFETT_MANAGEMENT_QUALITY",
+          "name": "Management Quality",
+          "description": "Overall assessment of management competence and integrity",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MANAGEMENT.quality",
+          "lookup": {
+            "EXCEPTIONAL": 100,
+            "GOOD": 75,
+            "AVERAGE": 50,
+            "POOR": 20
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_CAPITAL_ALLOCATION",
+          "name": "Capital Allocation",
+          "description": "Management's track record of deploying capital wisely",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.MANAGEMENT.capital_allocation",
+          "lookup": {
+            "EXCELLENT": 100,
+            "GOOD": 75,
+            "AVERAGE": 50,
+            "POOR": 20
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_INSIDER_OWNERSHIP",
+          "name": "Insider Ownership",
+          "description": "Skin in the game - management ownership percentage",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.MANAGEMENT.insider_ownership_pct",
+          "thresholds": [
+            { "min": 0.10, "score": 100, "label": "High (>10%)" },
+            { "min": 0.05, "score": 75, "label": "Good (5-10%)" },
+            { "min": 0.02, "score": 50, "label": "Moderate (2-5%)" },
+            { "min": 0, "score": 25, "label": "Low (<2%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "valuation",
+      "name": "Valuation",
+      "weight": 0.20,
+      "maxScore": 20,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "BUFFETT_PE_RATIO": 0.30,
+        "BUFFETT_FCF_YIELD": 0.30,
+        "BUFFETT_MARGIN_OF_SAFETY": 0.25,
+        "BUFFETT_EV_EBIT": 0.15
+      },
+      "rules": [
+        {
+          "id": "BUFFETT_PE_RATIO",
+          "name": "P/E Ratio",
+          "description": "Price to earnings - lower is better for value",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.VALUATION.pe_ratio",
+          "inverse": true,
+          "thresholds": [
+            { "max": 12, "score": 100, "label": "Cheap (<12)" },
+            { "max": 18, "score": 80, "label": "Fair (12-18)" },
+            { "max": 25, "score": 60, "label": "Full (18-25)" },
+            { "max": 999, "score": 20, "label": "Expensive (>25)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_FCF_YIELD",
+          "name": "Free Cash Flow Yield",
+          "description": "FCF relative to market cap - higher is better",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.fcf_yield",
+          "thresholds": [
+            { "min": 0.08, "score": 100, "label": "Excellent (>8%)" },
+            { "min": 0.06, "score": 80, "label": "Good (6-8%)" },
+            { "min": 0.04, "score": 60, "label": "Fair (4-6%)" },
+            { "min": 0, "score": 30, "label": "Low (<4%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_MARGIN_OF_SAFETY",
+          "name": "Margin of Safety",
+          "description": "Discount to intrinsic value estimate",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.VALUATION.margin_of_safety_pct",
+          "thresholds": [
+            { "min": 0.30, "score": 100, "label": "Large (>30%)" },
+            { "min": 0.20, "score": 80, "label": "Good (20-30%)" },
+            { "min": 0.10, "score": 60, "label": "Modest (10-20%)" },
+            { "min": 0, "score": 30, "label": "Minimal (<10%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_EV_EBIT",
+          "name": "EV/EBIT",
+          "description": "Enterprise value to EBIT - lower is better",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.VALUATION.ev_ebit",
+          "inverse": true,
+          "thresholds": [
+            { "max": 10, "score": 100, "label": "Cheap (<10)" },
+            { "max": 15, "score": 80, "label": "Fair (10-15)" },
+            { "max": 20, "score": 60, "label": "Full (15-20)" },
+            { "max": 999, "score": 20, "label": "Expensive (>20)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    },
+    {
+      "id": "predictability",
+      "name": "Predictability",
+      "weight": 0.10,
+      "maxScore": 10,
+      "aggregation": "weighted_sum",
+      "ruleWeights": {
+        "BUFFETT_EARNINGS_STABILITY": 0.40,
+        "BUFFETT_REVENUE_GROWTH": 0.35,
+        "BUFFETT_BUSINESS_UNDERSTANDABLE": 0.25
+      },
+      "rules": [
+        {
+          "id": "BUFFETT_EARNINGS_STABILITY",
+          "name": "Earnings Stability",
+          "description": "Consistency of earnings over time",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.FINANCIAL.earnings_stability",
+          "lookup": {
+            "VERY_STABLE": 100,
+            "STABLE": 80,
+            "MODERATE": 60,
+            "VOLATILE": 30,
+            "HIGHLY_VOLATILE": 10
+          },
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_REVENUE_GROWTH",
+          "name": "Revenue Growth (5Y)",
+          "description": "5-year compound annual revenue growth",
+          "ruleType": "THRESHOLD",
+          "field": "WHAT.FINANCIAL.revenue_growth_5y",
+          "thresholds": [
+            { "min": 0.15, "score": 100, "label": "Strong (>15%)" },
+            { "min": 0.10, "score": 80, "label": "Good (10-15%)" },
+            { "min": 0.05, "score": 60, "label": "Moderate (5-10%)" },
+            { "min": 0, "score": 40, "label": "Slow (<5%)" }
+          ],
+          "maxScore": 12,
+          "minScore": 0
+        },
+        {
+          "id": "BUFFETT_BUSINESS_UNDERSTANDABLE",
+          "name": "Business Understandability",
+          "description": "Circle of competence - is the business model simple to understand",
+          "ruleType": "LOOKUP",
+          "field": "WHAT.BUSINESS.complexity",
+          "lookup": {
+            "SIMPLE": 100,
+            "MODERATE": 70,
+            "COMPLEX": 40,
+            "VERY_COMPLEX": 20
+          },
+          "maxScore": 12,
+          "minScore": 0
+        }
+      ]
+    }
+  ],
+  "classifications": [
+    {
+      "name": "Strong Buy",
+      "minScore": 80,
+      "maxScore": 100,
+      "recommendation": "Excellent Buffett-style investment - wonderful company at fair price with durable moat"
+    },
+    {
+      "name": "Buy",
+      "minScore": 70,
+      "maxScore": 79.99,
+      "recommendation": "Good Buffett-style investment with solid quality metrics"
+    },
+    {
+      "name": "Hold",
+      "minScore": 50,
+      "maxScore": 69.99,
+      "recommendation": "Decent company but may not meet Buffett's high standards"
+    },
+    {
+      "name": "Watch",
+      "minScore": 35,
+      "maxScore": 49.99,
+      "recommendation": "Does not currently meet Buffett criteria - monitor for improvement"
+    },
+    {
+      "name": "Avoid",
+      "minScore": 0,
+      "maxScore": 34.99,
+      "recommendation": "Does not align with Buffett's investment philosophy"
+    }
+  ]
+}
