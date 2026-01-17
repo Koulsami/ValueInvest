@@ -94,7 +94,7 @@ async function testListRuleSets(): Promise<TestResult> {
     const { status, data } = await apiRequest<{
       success: boolean;
       result: { ruleSets: string[] };
-    }>('GET', '/api/v1/config/rule-sets');
+    }>('GET', '/api/v1/score/rule-sets');
 
     const duration = Date.now() - start;
 
@@ -149,7 +149,7 @@ async function testGetBuffettRuleSet(): Promise<TestResult> {
         investor: string;
         dimensions: Array<{ id: string; rules: unknown[] }>;
       };
-    }>('GET', '/api/v1/config/rule-sets/buffett-v1');
+    }>('GET', '/api/v1/score/rule-sets/buffett-v1');
 
     const duration = Date.now() - start;
 
@@ -207,7 +207,7 @@ async function testGetGrahamRuleSet(): Promise<TestResult> {
         investor: string;
         dimensions: Array<{ rules: unknown[] }>;
       };
-    }>('GET', '/api/v1/config/rule-sets/graham-v1');
+    }>('GET', '/api/v1/score/rule-sets/graham-v1');
 
     const duration = Date.now() - start;
 
@@ -236,7 +236,7 @@ async function testGetLynchRuleSet(): Promise<TestResult> {
         investor: string;
         dimensions: Array<{ rules: unknown[] }>;
       };
-    }>('GET', '/api/v1/config/rule-sets/lynch-v1');
+    }>('GET', '/api/v1/score/rule-sets/lynch-v1');
 
     const duration = Date.now() - start;
 
@@ -265,7 +265,7 @@ async function testGetFisherRuleSet(): Promise<TestResult> {
         investor: string;
         dimensions: Array<{ rules: unknown[] }>;
       };
-    }>('GET', '/api/v1/config/rule-sets/fisher-v1');
+    }>('GET', '/api/v1/score/rule-sets/fisher-v1');
 
     const duration = Date.now() - start;
 
@@ -294,7 +294,7 @@ async function testGetCompositeRuleSet(): Promise<TestResult> {
         isComposite: boolean;
         compositeWeights: Record<string, number>;
       };
-    }>('GET', '/api/v1/config/rule-sets/composite-v1');
+    }>('GET', '/api/v1/score/rule-sets/composite-v1');
 
     const duration = Date.now() - start;
 
